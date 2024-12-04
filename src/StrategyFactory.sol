@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.18;
 
-import {Strategy, ERC20} from "./Strategy.sol";
+import {EulerCompounderStrategy as Strategy, ERC20} from "./Strategy.sol";
 import {IStrategyInterface} from "./interfaces/IStrategyInterface.sol";
 
 contract StrategyFactory {
@@ -13,7 +13,7 @@ contract StrategyFactory {
     address public performanceFeeRecipient;
     address public keeper;
 
-    /// @notice Track the deployments. asset => pool => strategy
+    /// @notice Track the deployments. base vault => strategy
     mapping(address => address) public deployments;
 
     constructor(
@@ -30,16 +30,16 @@ contract StrategyFactory {
 
     /**
      * @notice Deploy a new Strategy.
-     * @param _asset The underlying asset for the strategy to use.
+     * @param _baseVault The underlying 4646 vault for the strategy to use.
      * @return . The address of the new strategy.
      */
     function newStrategy(
-        address _asset,
+        address _baseVault,
         string calldata _name
     ) external virtual returns (address) {
         // tokenized strategies available setters.
         IStrategyInterface _newStrategy = IStrategyInterface(
-            address(new Strategy(_asset, _name))
+            address(new Strategy(_baseVault, _name, 0))
         );
 
         _newStrategy.setPerformanceFeeRecipient(performanceFeeRecipient);
@@ -50,9 +50,9 @@ contract StrategyFactory {
 
         _newStrategy.setEmergencyAdmin(emergencyAdmin);
 
-        emit NewStrategy(address(_newStrategy), _asset);
+        emit NewStrategy(address(_newStrategy), _newStrategy.asset());
 
-        deployments[_asset] = address(_newStrategy);
+        deployments[_baseVault] = address(_newStrategy);
         return address(_newStrategy);
     }
 
