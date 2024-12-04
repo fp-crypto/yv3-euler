@@ -16,6 +16,11 @@ contract StrategyFactory {
     /// @notice Track the deployments. base vault => strategy
     mapping(address => address) public deployments;
 
+    /// @notice Initializes the factory with the core protocol roles
+    /// @param _management Address that will have management rights over strategies
+    /// @param _performanceFeeRecipient Address that will receive performance fees
+    /// @param _keeper Address that will be able to tend/harvest strategies
+    /// @param _emergencyAdmin Address that will have emergency powers
     constructor(
         address _management,
         address _performanceFeeRecipient,
@@ -28,11 +33,11 @@ contract StrategyFactory {
         emergencyAdmin = _emergencyAdmin;
     }
 
-    /**
-     * @notice Deploy a new Strategy.
-     * @param _baseVault The underlying 4646 vault for the strategy to use.
-     * @return . The address of the new strategy.
-     */
+    /// @notice Deploy a new Strategy
+    /// @dev Creates a new Strategy instance and sets up all the required roles
+    /// @param _baseVault The underlying 4646 vault for the strategy to use
+    /// @param _name The name for the strategy token
+    /// @return address The address of the newly deployed strategy
     function newStrategy(
         address _baseVault,
         string calldata _name
@@ -56,6 +61,11 @@ contract StrategyFactory {
         return address(_newStrategy);
     }
 
+    /// @notice Updates the core protocol roles
+    /// @dev Can only be called by current management
+    /// @param _management New management address
+    /// @param _performanceFeeRecipient New fee recipient address
+    /// @param _keeper New keeper address
     function setAddresses(
         address _management,
         address _performanceFeeRecipient,
@@ -67,6 +77,10 @@ contract StrategyFactory {
         keeper = _keeper;
     }
 
+    /// @notice Checks if a strategy was deployed by this factory
+    /// @dev Verifies if the strategy address matches the recorded deployment for its asset
+    /// @param _strategy Address of the strategy to check
+    /// @return bool True if the strategy was deployed by this factory, false otherwise
     function isDeployedStrategy(
         address _strategy
     ) external view returns (bool) {
