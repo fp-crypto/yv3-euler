@@ -4,7 +4,7 @@ pragma solidity ^0.8.18;
 import "forge-std/console2.sol";
 import {ExtendedTest} from "./ExtendedTest.sol";
 
-import {EulerCompounderStrategy as Strategy, ERC20} from "../../Strategy.sol";
+import {EulerCompounderStrategy as Strategy, ERC20, IStrategy} from "../../Strategy.sol";
 import {StrategyFactory} from "../../StrategyFactory.sol";
 import {IStrategyInterface} from "../../interfaces/IStrategyInterface.sol";
 
@@ -22,6 +22,7 @@ interface IFactory {
 contract Setup is ExtendedTest, IEvents {
     // Contract instances that we will use repeatedly.
     ERC20 public asset;
+    IStrategy public vault;
     IStrategyInterface public strategy;
 
     StrategyFactory public strategyFactory;
@@ -43,8 +44,8 @@ contract Setup is ExtendedTest, IEvents {
     uint256 public MAX_BPS = 10_000;
 
     // Fuzz from $0.01 of 1e6 stable coins up to 1 trillion of a 1e18 coin
-    uint256 public maxFuzzAmount = 1e30;
-    uint256 public minFuzzAmount = 10_000;
+    uint256 public maxFuzzAmount = 10_000_000e6;
+    uint256 public minFuzzAmount = 100e6;
 
     // Default profit max unlock time is set for 10 days
     uint256 public profitMaxUnlockTime = 10 days;
@@ -53,7 +54,8 @@ contract Setup is ExtendedTest, IEvents {
         _setTokenAddrs();
 
         // Set asset
-        asset = ERC20(tokenAddrs["DAI"]);
+        asset = ERC20(tokenAddrs["USDC"]);
+        vault = IStrategyInterface(address(tokenAddrs["eUSDC"]));
 
         // Set decimals
         decimals = asset.decimals();
@@ -84,8 +86,9 @@ contract Setup is ExtendedTest, IEvents {
         IStrategyInterface _strategy = IStrategyInterface(
             address(
                 strategyFactory.newStrategy(
-                    address(asset),
-                    "Tokenized Strategy"
+                    address(vault),
+                    "Tokenized Strategy",
+                    500
                 )
             )
         );
@@ -163,5 +166,6 @@ contract Setup is ExtendedTest, IEvents {
         tokenAddrs["USDT"] = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
         tokenAddrs["DAI"] = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
         tokenAddrs["USDC"] = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+        tokenAddrs["eUSDC"] = 0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9;
     }
 }

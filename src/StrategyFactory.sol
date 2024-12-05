@@ -37,14 +37,16 @@ contract StrategyFactory {
     /// @dev Creates a new Strategy instance and sets up all the required roles
     /// @param _baseVault The underlying 4646 vault for the strategy to use
     /// @param _name The name for the strategy token
+    /// @param _assetSwapFee Uniswap asset swap fee 
     /// @return address The address of the newly deployed strategy
     function newStrategy(
         address _baseVault,
-        string calldata _name
+        string calldata _name,
+        uint24 _assetSwapFee
     ) external virtual returns (address) {
         // tokenized strategies available setters.
         IStrategyInterface _newStrategy = IStrategyInterface(
-            address(new Strategy(_baseVault, _name, 0))
+            address(new Strategy(_baseVault, _name, _assetSwapFee))
         );
 
         _newStrategy.setPerformanceFeeRecipient(performanceFeeRecipient);
