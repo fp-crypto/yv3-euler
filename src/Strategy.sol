@@ -4,6 +4,7 @@ pragma solidity ^0.8.18;
 import {Base4626Compounder, ERC20, IStrategy, SafeERC20} from "@periphery/Bases/4626Compounder/Base4626Compounder.sol";
 import {UniswapV3Swapper} from "@periphery/swappers/UniswapV3Swapper.sol";
 import {IRewardToken} from "@euler-interfaces/IRewardToken.sol";
+import {IMerklDistributor} from "./interfaces/IMerklDistributor.sol";
 
 /// @title Euler Compounder Strategy
 /// @notice A strategy for compounding Euler rewards into the underlying asset
@@ -19,6 +20,9 @@ contract EulerCompounderStrategy is Base4626Compounder, UniswapV3Swapper {
         ERC20(0xd9Fcd98c322942075A5C3860693e9f4f03AAE07b);
     /// @notice The Wrapped Ether contract address
     address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+
+    IMerklDistributor public constant MERKL_DISTRIBUTOR =
+        IMerklDistributor(0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae);
 
     /// @notice Minimum amount of EUL required to execute a swap (default: 1 EUL)
     uint96 public minEulToSwap = 1e18;
@@ -79,5 +83,21 @@ contract EulerCompounderStrategy is Base4626Compounder, UniswapV3Swapper {
         uint24 _wethToAssetSwapFee
     ) external onlyManagement {
         _setUniFees(WETH, address(asset), _wethToAssetSwapFee);
+    }
+
+    /// @notice Claims rewards for a given set of users (forwards to merkl distributor)
+    /// @dev Anyone may call this function for anyone else, funds go to destination regardless, it's just a question of
+    /// who provides the proof and pays the gas: `msg.sender` is used only for addresses that require a trusted operator
+    /// @param users Recipient of tokens
+    /// @param tokens ERC20 claimed
+    /// @param amounts Amount of tokens that will be sent to the corresponding users
+    /// @param proofs Array of hashes bridging from a leaf `(hash of user | token | amount)` to the Merkle root
+    function claim(
+        address[] calldata users,
+        address[] calldata tokens,
+        uint256[] calldata amounts,
+        bytes32[][] calldata proofs
+    ) external {
+        MERKL_DISTRIBUTOR.claim(users, tokens, amounts, proofs);
     }
 }
