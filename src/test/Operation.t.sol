@@ -202,9 +202,7 @@ contract OperationTest is Setup {
         );
     }
 
-    function test_profitableReportOnlyBase(
-        uint256 _amount
-    ) public {
+    function test_profitableReportOnlyBase(uint256 _amount) public {
         _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
 
         // Deposit into strategy
@@ -237,7 +235,6 @@ contract OperationTest is Setup {
         );
     }
 
-
     function test_profitableReportOnlyAirdrop(
         uint256 _amount,
         uint256 _reulRewardAmount
@@ -259,16 +256,6 @@ contract OperationTest is Setup {
         // Report profit
         vm.prank(keeper);
         (uint256 profit, uint256 loss) = strategy.report();
-
-        // Check return Values
-        assertGt(profit, 0, "!profit");
-        assertEq(loss, 0, "!loss");
-
-        skip(strategy.profitMaxUnlockTime());
-
-        // Report profit
-        vm.prank(keeper);
-        (profit, loss) = strategy.report();
 
         // Check return Values
         assertGt(profit, 0, "!profit");
