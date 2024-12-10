@@ -202,6 +202,93 @@ contract OperationTest is Setup {
         );
     }
 
+    function test_profitableReportOnlyBase(
+        uint256 _amount
+    ) public {
+        _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        assertEq(strategy.totalAssets(), _amount, "!totalAssets");
+
+        skip(1 days);
+
+        // Report profit
+        vm.prank(keeper);
+        (uint256 profit, uint256 loss) = strategy.report();
+
+        // Check return Values
+        assertGt(profit, 0, "!profit");
+        assertEq(loss, 0, "!loss");
+
+        skip(strategy.profitMaxUnlockTime());
+
+        uint256 balanceBefore = asset.balanceOf(user);
+
+        // Withdraw all funds
+        vm.prank(user);
+        strategy.redeem(_amount, user, user);
+
+        assertGe(
+            asset.balanceOf(user),
+            balanceBefore + _amount,
+            "!final balance"
+        );
+    }
+
+
+    function test_profitableReportOnlyAirdrop(
+        uint256 _amount,
+        uint256 _reulRewardAmount
+    ) public {
+        _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
+        _reulRewardAmount = bound(
+            _reulRewardAmount,
+            (strategy.minEulToSwap() * 10) / 2,
+            Math.min((_amount * 1e12) / 10, maxREUL()) // airdrop no more than 10% of the strategy value
+        );
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        assertEq(strategy.totalAssets(), _amount, "!totalAssets");
+
+        airdropREUL(address(strategy), _reulRewardAmount);
+
+        // Report profit
+        vm.prank(keeper);
+        (uint256 profit, uint256 loss) = strategy.report();
+
+        // Check return Values
+        assertGt(profit, 0, "!profit");
+        assertEq(loss, 0, "!loss");
+
+        skip(strategy.profitMaxUnlockTime());
+
+        // Report profit
+        vm.prank(keeper);
+        (profit, loss) = strategy.report();
+
+        // Check return Values
+        assertGt(profit, 0, "!profit");
+        assertEq(loss, 0, "!loss");
+
+        skip(strategy.profitMaxUnlockTime());
+
+        uint256 balanceBefore = asset.balanceOf(user);
+
+        // Withdraw all funds
+        vm.prank(user);
+        strategy.redeem(_amount, user, user);
+
+        assertGe(
+            asset.balanceOf(user),
+            balanceBefore + _amount,
+            "!final balance"
+        );
+    }
+
     function test_setters(
         uint96 _minEulToSwap,
         uint24 _eulToWethSwapFee,
