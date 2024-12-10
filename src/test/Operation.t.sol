@@ -3,6 +3,7 @@ pragma solidity ^0.8.18;
 
 import "forge-std/console2.sol";
 import {Setup, ERC20, IStrategyInterface} from "./utils/Setup.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract OperationTest is Setup {
     function setUp() public virtual override {
@@ -55,10 +56,57 @@ contract OperationTest is Setup {
 
     function test_profitableReport(
         uint256 _amount,
-        uint16 _profitFactor
+        uint256 _reulRewardAmount
     ) public {
         _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
-        _profitFactor = uint16(bound(uint256(_profitFactor), 10, MAX_BPS));
+        _reulRewardAmount = bound(
+            _reulRewardAmount,
+            (strategy.minEulToSwap() * 10) / 2,
+            Math.min((_amount * 1e12) / 10, maxREUL()) // airdrop no more than 10% of the strategy value
+        );
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        assertEq(strategy.totalAssets(), _amount, "!totalAssets");
+
+        // Earn Interest and rewards
+        skip(1 days);
+        airdropREUL(address(strategy), _reulRewardAmount);
+
+        // Report profit
+        vm.prank(keeper);
+        (uint256 profit, uint256 loss) = strategy.report();
+
+        // Check return Values
+        assertGt(profit, 0, "!profit");
+        assertEq(loss, 0, "!loss");
+
+        skip(strategy.profitMaxUnlockTime());
+
+        uint256 balanceBefore = asset.balanceOf(user);
+
+        // Withdraw all funds
+        vm.prank(user);
+        strategy.redeem(_amount, user, user);
+
+        assertGe(
+            asset.balanceOf(user),
+            balanceBefore + _amount,
+            "!final balance"
+        );
+    }
+
+    function test_profitableReportBaseThenAirdrop(
+        uint256 _amount,
+        uint256 _reulRewardAmount
+    ) public {
+        _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
+        _reulRewardAmount = bound(
+            _reulRewardAmount,
+            (strategy.minEulToSwap() * 10) / 2,
+            Math.min((_amount * 1e12) / 10, maxREUL()) // airdrop no more than 10% of the strategy value
+        );
 
         // Deposit into strategy
         mintAndDepositIntoStrategy(strategy, user, _amount);
@@ -68,13 +116,72 @@ contract OperationTest is Setup {
         // Earn Interest
         skip(1 days);
 
-        // TODO: implement logic to simulate earning interest.
-        uint256 toAirdrop = (_amount * 1e12 * _profitFactor) / MAX_BPS;
-        airdrop(ERC20(strategy.REUL()), address(strategy), toAirdrop);
+        // Report profit
+        vm.prank(keeper);
+        (uint256 profit, uint256 loss) = strategy.report();
+
+        // Check return Values
+        assertGt(profit, 0, "!profit");
+        assertEq(loss, 0, "!loss");
+
+        skip(strategy.profitMaxUnlockTime());
+
+        airdropREUL(address(strategy), _reulRewardAmount);
+
+        // Report profit
+        vm.prank(keeper);
+        (profit, loss) = strategy.report();
+
+        // Check return Values
+        assertGt(profit, 0, "!profit");
+        assertEq(loss, 0, "!loss");
+
+        skip(strategy.profitMaxUnlockTime());
+
+        uint256 balanceBefore = asset.balanceOf(user);
+
+        // Withdraw all funds
+        vm.prank(user);
+        strategy.redeem(_amount, user, user);
+
+        assertGe(
+            asset.balanceOf(user),
+            balanceBefore + _amount,
+            "!final balance"
+        );
+    }
+
+    function test_profitableReportAirdropThenBase(
+        uint256 _amount,
+        uint256 _reulRewardAmount
+    ) public {
+        _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
+        _reulRewardAmount = bound(
+            _reulRewardAmount,
+            (strategy.minEulToSwap() * 10) / 2,
+            Math.min((_amount * 1e12) / 10, maxREUL()) // airdrop no more than 10% of the strategy value
+        );
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        assertEq(strategy.totalAssets(), _amount, "!totalAssets");
+
+        airdropREUL(address(strategy), _reulRewardAmount);
 
         // Report profit
         vm.prank(keeper);
         (uint256 profit, uint256 loss) = strategy.report();
+
+        // Check return Values
+        assertGt(profit, 0, "!profit");
+        assertEq(loss, 0, "!loss");
+
+        skip(strategy.profitMaxUnlockTime());
+
+        // Report profit
+        vm.prank(keeper);
+        (profit, loss) = strategy.report();
 
         // Check return Values
         assertGt(profit, 0, "!profit");

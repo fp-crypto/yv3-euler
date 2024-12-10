@@ -79,6 +79,8 @@ contract Setup is ExtendedTest, IEvents {
         vm.label(management, "management");
         vm.label(address(strategy), "strategy");
         vm.label(performanceFeeRecipient, "performanceFeeRecipient");
+        vm.label(strategy.EUL(), "EUL");
+        vm.label(strategy.REUL(), "REUL");
     }
 
     function setUpStrategy() public returns (address) {
@@ -142,6 +144,16 @@ contract Setup is ExtendedTest, IEvents {
     function airdrop(ERC20 _asset, address _to, uint256 _amount) public {
         uint256 balanceBefore = _asset.balanceOf(_to);
         deal(address(_asset), _to, balanceBefore + _amount);
+    }
+
+    function airdropREUL(address _to, uint256 _amount) public {
+        ERC20 reul = ERC20(strategy.REUL());
+        vm.prank(strategy.MERKL_DISTRIBUTOR());
+        reul.transfer(_to, _amount);
+    }
+
+    function maxREUL() public view returns (uint256) {
+        return ERC20(strategy.REUL()).balanceOf(strategy.MERKL_DISTRIBUTOR());
     }
 
     function setFees(uint16 _protocolFee, uint16 _performanceFee) public {

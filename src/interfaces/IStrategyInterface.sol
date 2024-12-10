@@ -11,6 +11,8 @@ interface IStrategyInterface is IBase4626Compounder {
     /// @notice The Wrapped Ether contract address
     function WETH() external view returns (address);
 
+    function MERKL_DISTRIBUTOR() external view returns (address);
+
     /// @notice Minimum amount of EUL required to execute a swap (default: 1 EUL)
     function minEulToSwap() external view returns (uint96);
 
