@@ -202,6 +202,36 @@ contract OperationTest is Setup {
         );
     }
 
+    function test_setters(
+        uint96 _minEulToSwap,
+        uint24 _eulToWethSwapFee,
+        uint24 _wethToAssetSwapFee
+    ) public {
+        vm.expectRevert("!management");
+        strategy.setMinEulToSwap(_minEulToSwap);
+        vm.prank(management);
+        strategy.setMinEulToSwap(_minEulToSwap);
+        assertEq(_minEulToSwap, strategy.minEulToSwap());
+
+        vm.expectRevert("!management");
+        strategy.setEulToWethSwapFee(_eulToWethSwapFee);
+        vm.prank(management);
+        strategy.setEulToWethSwapFee(_eulToWethSwapFee);
+        assertEq(
+            _eulToWethSwapFee,
+            strategy.uniFees(strategy.EUL(), strategy.WETH())
+        );
+
+        vm.expectRevert("!management");
+        strategy.setWethToAssetSwapFee(_wethToAssetSwapFee);
+        vm.prank(management);
+        strategy.setWethToAssetSwapFee(_wethToAssetSwapFee);
+        assertEq(
+            _wethToAssetSwapFee,
+            strategy.uniFees(strategy.WETH(), strategy.asset())
+        );
+    }
+
     function test_tendTrigger(uint256 _amount) public {
         _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
 

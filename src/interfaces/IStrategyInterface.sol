@@ -2,8 +2,9 @@
 pragma solidity ^0.8.18;
 
 import {IBase4626Compounder} from "@periphery/Bases/4626Compounder/IBase4626Compounder.sol";
+import {IUniswapV3Swapper} from "@periphery/swappers/interfaces/IUniswapV3Swapper.sol";
 
-interface IStrategyInterface is IBase4626Compounder {
+interface IStrategyInterface is IBase4626Compounder, IUniswapV3Swapper {
     /// @notice The Euler reward token contract
     function REUL() external view returns (address);
     /// @notice The EUL token contract
