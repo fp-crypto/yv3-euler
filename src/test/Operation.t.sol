@@ -202,6 +202,55 @@ contract OperationTest is Setup {
         );
     }
 
+    function test_profitableReportAirdropThenBase_DudesVersion(
+        uint256 _amount
+    ) public {
+        _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
+        uint256 _reulRewardAmount = Math.min((_amount * 1e12) / 10, maxREUL()); // airdrop no more than 10% of the strategy value
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        assertEq(strategy.totalAssets(), _amount, "!totalAssets");
+
+        skip(strategy.profitMaxUnlockTime());
+        airdropREUL(address(strategy), _reulRewardAmount);
+
+        // Report profit
+        vm.prank(keeper);
+        (uint256 profitWithAirdrop, uint256 loss) = strategy.report();
+
+        // Check return Values
+        assertGt(profitWithAirdrop, 0, "!profit");
+        assertEq(loss, 0, "!loss");
+
+        skip(strategy.profitMaxUnlockTime());
+
+        uint256 profit;
+        // Report profit
+        vm.prank(keeper);
+        (profit, loss) = strategy.report();
+
+        // Check return Values
+        assertGt(profit, 0, "!profit");
+        assertEq(loss, 0, "!loss");
+        assertGt(profitWithAirdrop, profit, "!airdropProfit");
+
+        skip(strategy.profitMaxUnlockTime());
+
+        uint256 balanceBefore = asset.balanceOf(user);
+
+        // Withdraw all funds
+        vm.prank(user);
+        strategy.redeem(_amount, user, user);
+
+        assertGe(
+            asset.balanceOf(user),
+            balanceBefore + _amount,
+            "!final balance"
+        );
+    }
+
     function test_profitableReportOnlyBase(uint256 _amount) public {
         _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
 
