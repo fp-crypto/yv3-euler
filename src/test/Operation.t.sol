@@ -17,7 +17,7 @@ contract OperationTest is Setup {
         assertEq(strategy.management(), management);
         assertEq(strategy.performanceFeeRecipient(), performanceFeeRecipient);
         assertEq(strategy.keeper(), keeper);
-        // TODO: add additional check on strat params
+        assertTrue(strategyFactory.isDeployedStrategy(address(strategy)));
     }
 
     function test_operation(uint256 _amount) public {
@@ -61,7 +61,7 @@ contract OperationTest is Setup {
         _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
         _reulRewardAmount = bound(
             _reulRewardAmount,
-            (strategy.minEulToSwap() * 10) / 2,
+            (strategy.minAmountToSell() * 10) / 2,
             Math.min((_amount * 1e12) / 10, maxREUL()) // airdrop no more than 10% of the strategy value
         );
 
@@ -104,7 +104,7 @@ contract OperationTest is Setup {
         _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
         _reulRewardAmount = bound(
             _reulRewardAmount,
-            (strategy.minEulToSwap() * 10) / 2,
+            (strategy.minAmountToSell() * 10) / 2,
             Math.min((_amount * 1e12) / 10, maxREUL()) // airdrop no more than 10% of the strategy value
         );
 
@@ -158,7 +158,7 @@ contract OperationTest is Setup {
         _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
         _reulRewardAmount = bound(
             _reulRewardAmount,
-            (strategy.minEulToSwap() * 10) / 2,
+            (strategy.minAmountToSell() * 10) / 2,
             Math.min((_amount * 1e12) / 10, maxREUL()) // airdrop no more than 10% of the strategy value
         );
 
@@ -291,7 +291,7 @@ contract OperationTest is Setup {
         _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
         _reulRewardAmount = bound(
             _reulRewardAmount,
-            (strategy.minEulToSwap() * 10) / 2,
+            (strategy.minAmountToSell() * 10) / 2,
             Math.min((_amount * 1e12) / 10, maxREUL()) // airdrop no more than 10% of the strategy value
         );
 
@@ -331,10 +331,10 @@ contract OperationTest is Setup {
         uint24 _wethToAssetSwapFee
     ) public {
         vm.expectRevert("!management");
-        strategy.setMinEulToSwap(_minEulToSwap);
+        strategy.setMinEulToSwap(uint256(_minEulToSwap));
         vm.prank(management);
-        strategy.setMinEulToSwap(_minEulToSwap);
-        assertEq(_minEulToSwap, strategy.minEulToSwap());
+        strategy.setMinEulToSwap(uint256(_minEulToSwap));
+        assertEq(uint256(_minEulToSwap), strategy.minAmountToSell());
 
         vm.expectRevert("!management");
         strategy.setEulToWethSwapFee(_eulToWethSwapFee);
@@ -390,5 +390,11 @@ contract OperationTest is Setup {
 
         (trigger, ) = strategy.tendTrigger();
         assertTrue(!trigger);
+    }
+
+
+    function test_strategyFactoryUnique() public {
+        vm.expectRevert("exists");
+        strategyFactory.newStrategy(strategy.vault(), "", 0);
     }
 }

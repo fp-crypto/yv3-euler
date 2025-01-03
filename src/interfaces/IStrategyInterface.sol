@@ -14,13 +14,10 @@ interface IStrategyInterface is IBase4626Compounder, IUniswapV3Swapper {
 
     function MERKL_DISTRIBUTOR() external view returns (address);
 
-    /// @notice Minimum amount of EUL required to execute a swap (default: 1 EUL)
-    function minEulToSwap() external view returns (uint96);
-
     /// @notice Sets the minimum amount of EUL required to trigger a swap
     /// @dev Can only be called by management
     /// @param _minEulToSwap Minimum amount of EUL tokens (in wei) needed to execute a swap
-    function setMinEulToSwap(uint96 _minEulToSwap) external;
+    function setMinEulToSwap(uint256 _minEulToSwap) external;
 
     /// @notice Sets the Uniswap V3 fee tier for EUL to WETH swaps
     /// @dev Can only be called by management

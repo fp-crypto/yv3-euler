@@ -24,9 +24,6 @@ contract EulerCompounderStrategy is Base4626Compounder, UniswapV3Swapper {
     IMerklDistributor public constant MERKL_DISTRIBUTOR =
         IMerklDistributor(0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae);
 
-    /// @notice Minimum amount of EUL required to execute a swap (default: 1 EUL)
-    uint96 public minEulToSwap = 1e18;
-
     /// @notice Initializes the Euler compounder strategy
     /// @param _vault Address of the underlying vault
     /// @param _name Name of the strategy token
@@ -36,6 +33,7 @@ contract EulerCompounderStrategy is Base4626Compounder, UniswapV3Swapper {
         string memory _name,
         uint24 _assetSwapUniFee
     ) Base4626Compounder(IStrategy(_vault).asset(), _name, _vault) {
+        minAmountToSell = 1e18; // minEulToSwap
         _setUniFees(address(EUL), WETH, 10000);
         if (address(asset) != WETH) {
             _setUniFees(WETH, address(asset), _assetSwapUniFee);
@@ -55,16 +53,14 @@ contract EulerCompounderStrategy is Base4626Compounder, UniswapV3Swapper {
         }
 
         uint256 _eulBalance = EUL.balanceOf(address(this));
-        if (_eulBalance >= uint256(minEulToSwap)) {
-            _swapFrom(address(EUL), address(asset), _eulBalance, 0);
-        }
+        _swapFrom(address(EUL), address(asset), _eulBalance, 0);
     }
 
     /// @notice Sets the minimum amount of EUL required to trigger a swap
     /// @dev Can only be called by management
     /// @param _minEulToSwap Minimum amount of EUL tokens (in wei) needed to execute a swap
-    function setMinEulToSwap(uint96 _minEulToSwap) external onlyManagement {
-        minEulToSwap = _minEulToSwap;
+    function setMinEulToSwap(uint256 _minEulToSwap) external onlyManagement {
+        minAmountToSell = _minEulToSwap;
     }
 
     /// @notice Sets the Uniswap V3 fee tier for EUL to WETH swaps

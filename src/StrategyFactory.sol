@@ -49,12 +49,11 @@ contract StrategyFactory {
             address(new Strategy(_baseVault, _name, _assetSwapFee))
         );
 
+        require(deployments[_baseVault] == address(0), "exists");
+
         _newStrategy.setPerformanceFeeRecipient(performanceFeeRecipient);
-
         _newStrategy.setKeeper(keeper);
-
         _newStrategy.setPendingManagement(management);
-
         _newStrategy.setEmergencyAdmin(emergencyAdmin);
 
         emit NewStrategy(address(_newStrategy), _newStrategy.asset());

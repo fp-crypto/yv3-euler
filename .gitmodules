@@ -15,3 +15,6 @@
 [submodule "lib/euler-interfaces"]
 	path = lib/euler-interfaces
 	url = https://github.com/euler-xyz/euler-interfaces
+[submodule "lib/createx-forge"]
+	path = lib/createx-forge
+	url = https://github.com/radeksvarz/createx-forge
