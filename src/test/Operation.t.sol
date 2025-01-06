@@ -392,9 +392,9 @@ contract OperationTest is Setup {
         assertTrue(!trigger);
     }
 
-
     function test_strategyFactoryUnique() public {
+        address vault = strategy.vault();
         vm.expectRevert("exists");
-        strategyFactory.newStrategy(strategy.vault(), "", 0);
+        strategyFactory.newStrategy(vault, "", 0);
     }
 }
