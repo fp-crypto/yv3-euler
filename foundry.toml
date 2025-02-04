@@ -5,6 +5,7 @@ libs = ['lib']
 solc = "0.8.23"
 evm_version = "shanghai"
 via_ir = true
+optimizer = true
 optimizer_runs = 1_000_000
 
 remappings = [
@@ -13,6 +14,7 @@ remappings = [
     "@tokenized-strategy/=lib/tokenized-strategy/src/",
     "@periphery/=lib/tokenized-strategy-periphery/src/",
     "@euler-interfaces/=lib/euler-interfaces/interfaces/1/",
+    "@uniswap-v3-core/=lib/uniswap-v3-core/contracts/",
     "@createx-forge/=lib/createx-forge/",
 ]
 

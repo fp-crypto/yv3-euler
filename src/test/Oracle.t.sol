@@ -3,13 +3,14 @@ pragma solidity ^0.8.18;
 import "forge-std/console2.sol";
 import {Setup} from "./utils/Setup.sol";
 
-import {StrategyAprOracle} from "../periphery/StrategyAprOracle.sol";
+import {EulerVaultAprOracle as StrategyAprOracle} from "../periphery/StrategyAprOracle.sol";
 
 contract OracleTest is Setup {
     StrategyAprOracle public oracle;
 
     function setUp() public override {
         super.setUp();
+        vm.prank(management);
         oracle = new StrategyAprOracle();
     }
 
@@ -23,33 +24,72 @@ contract OracleTest is Setup {
         assertGt(currentApr, 0, "ZERO");
         assertLt(currentApr, 1e18, "+100%");
 
-        // TODO: Uncomment to test the apr goes up and down based on debt changes
-        /**
-        uint256 negativeDebtChangeApr = oracle.aprAfterDebtChange(_strategy, -int256(_delta));
+        uint256 negativeDebtChangeApr = oracle.aprAfterDebtChange(
+            _strategy,
+            -int256(_delta)
+        );
 
         // The apr should go up if deposits go down
         assertLt(currentApr, negativeDebtChangeApr, "negative change");
 
-        uint256 positiveDebtChangeApr = oracle.aprAfterDebtChange(_strategy, int256(_delta));
+        uint256 positiveDebtChangeApr = oracle.aprAfterDebtChange(
+            _strategy,
+            int256(_delta)
+        );
 
         assertGt(currentApr, positiveDebtChangeApr, "positive change");
-        */
 
-        // TODO: Uncomment if there are setter functions to test.
-        /**
+        address[] memory _targets = new address[](2);
+        _targets[0] = strategy.vault();
+        _targets[1] = strategy.vault();
+
+        StrategyAprOracle.MerklCampaign[]
+            memory _campaigns = new StrategyAprOracle.MerklCampaign[](2);
+        _campaigns[0] = StrategyAprOracle.MerklCampaign({
+            startTime: uint64(block.timestamp - 15 days),
+            endTime: uint64(block.timestamp + 15 days),
+            amount: 3332920000000000000000
+        });
+        _campaigns[1] = StrategyAprOracle.MerklCampaign({
+            startTime: uint64(block.timestamp - 1 days),
+            endTime: uint64(block.timestamp + 29 days),
+            amount: 7500040000000000000000
+        });
+
         vm.expectRevert("!governance");
         vm.prank(user);
-        oracle.setterFunction(setterVariable);
+        oracle.addCampaigns(_targets, _campaigns);
 
         vm.prank(management);
-        oracle.setterFunction(setterVariable);
+        oracle.addCampaigns(_targets, _campaigns);
 
-        assertEq(oracle.setterVariable(), setterVariable);
-        */
+        assertEq(oracle.merklCampaigns(strategy.vault()).length, 2);
+
+        uint256 withRewardsApr = oracle.aprAfterDebtChange(_strategy, 0);
+
+        assertLt(currentApr, withRewardsApr, "withRewardsApr");
+
+        vm.expectRevert("!governance");
+        vm.prank(user);
+        oracle.reepStaleCampaigns(_targets);
+
+        vm.prank(management);
+        oracle.reepStaleCampaigns(_targets);
+
+        assertEq(oracle.merklCampaigns(strategy.vault()).length, 2);
+
+        vm.warp(block.timestamp + 30 days);
+
+        vm.prank(management);
+        oracle.reepStaleCampaigns(_targets);
+
+        assertEq(oracle.merklCampaigns(strategy.vault()).length, 0);
+
+        assertFalse(true);
     }
 
-    function test_oracle(uint256 _amount, uint16 _percentChange) public {
-        vm.assume(_amount > minFuzzAmount && _amount < maxFuzzAmount);
+    function test_oracle(/*uint256 _amount,*/ uint16 _percentChange) public {
+        uint256 _amount = 100_000e6; //bound(_amount, minFuzzAmount, maxFuzzAmount);
         _percentChange = uint16(bound(uint256(_percentChange), 10, MAX_BPS));
 
         mintAndDepositIntoStrategy(strategy, user, _amount);

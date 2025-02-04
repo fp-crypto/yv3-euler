@@ -38,5 +38,7 @@ coverage :; forge coverage --fork-url ${FORK_URL}
 coverage-report :; forge coverage --report lcov --fork-url ${FORK_URL}
 coverage-debug :; forge coverage --report debug --fork-url ${FORK_URL}
 
+script  :; forge script -vvvv ${script} --fork-url ${FORK_URL} --etherscan-api-key ${ETHERSCAN_API_KEY} --account ${account}
+broadcast-script  :; forge script -vv ${script} --fork-url ${FORK_URL} --etherscan-api-key ${ETHERSCAN_API_KEY} --broadcast --account ${account}
 
 clean  :; forge clean
