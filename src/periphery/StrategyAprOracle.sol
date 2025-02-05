@@ -13,15 +13,15 @@ contract EulerVaultAprOracle is AprOracleBase, Multicall {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
     /// @notice The Euler Protocol's VaultLens contract for querying vault information
-    IVaultLens public constant VAULT_LENS =
+    IVaultLens private constant VAULT_LENS =
         IVaultLens(0xE4044D26C879f58Acc97f27db04c1686fa9ED29E);
     /// @notice The Uniswap V3 Router contract address used for swap simulations
-    address public constant UNISWAP_V3_ROUTER =
+    address private constant UNISWAP_V3_ROUTER =
         0xE592427A0AEce92De3Edee1F18E0157C05861564;
     /// @notice The Euler Protocol's EUL token contract address
-    address public constant EUL = 0xd9Fcd98c322942075A5C3860693e9f4f03AAE07b;
+    address private constant EUL = 0xd9Fcd98c322942075A5C3860693e9f4f03AAE07b;
     /// @notice The Wrapped Ether contract address
-    address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address private constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     struct MerklCampaign {
         uint64 startTime;
@@ -31,12 +31,9 @@ contract EulerVaultAprOracle is AprOracleBase, Multicall {
 
     mapping(address => EnumerableSet.Bytes32Set) private _merklCampaigns;
 
-    constructor(address _governance)
-        AprOracleBase(
-            "Euler Vault Apr Oracle",
-            _governance
-        )
-    {}
+    constructor(
+        address _governance
+    ) AprOracleBase("Euler Vault Apr Oracle", _governance) {}
 
     /**
      * @notice Will return the expected APR of a Euler Vault post a supply change.
@@ -53,6 +50,12 @@ contract EulerVaultAprOracle is AprOracleBase, Multicall {
         );
         IEVault _eVault = IEVault(_eulerStrategy.vault());
 
+        uint256 _newTotalAssets = uint256(
+            int256(_eulerStrategy.totalAssets()) + _delta
+        );
+
+        if (_newTotalAssets < 0) return 0;
+
         uint256[] memory _cash = new uint256[](1);
         _cash[0] = _eVault.cash();
         require(int256(_cash[0]) >= -_delta, "delta too big"); // dev: _delta too big
@@ -65,6 +68,8 @@ contract EulerVaultAprOracle is AprOracleBase, Multicall {
             .getVaultInterestRateModelInfo(address(_eVault), _cash, _borrows);
 
         _apr = _info.interestRateInfo[0].supplyAPY / 1e9;
+
+        if (_newTotalAssets == 0) return _apr;
 
         uint256 _eulPerWeek = (reulPerSecond(address(_eVault)) * 7 days) / 5; // rEUL vests 20% immediately, thus divide by 5
         if (_eulPerWeek == 0) return _apr;
@@ -85,7 +90,7 @@ contract EulerVaultAprOracle is AprOracleBase, Multicall {
                 _eulerStrategy.uniFees(EUL, WETH),
                 _asset == WETH ? 0 : _eulerStrategy.uniFees(WETH, _asset)
             ) * 52) * 1e18) /
-            _eulerStrategy.totalAssets();
+            _newTotalAssets;
     }
 
     /// @notice Get all merkl campaigns for a given eVault
