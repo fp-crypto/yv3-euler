@@ -14,9 +14,6 @@ contract OracleTest is Setup {
     }
 
     function checkOracle(address _strategy, uint256 _delta) public {
-        // Check set up
-        // TODO: Add checks for the setup
-
         uint256 currentApr = oracle.aprAfterDebtChange(_strategy, 0);
 
         // Should be greater than 0 but likely less than 100%
@@ -65,8 +62,27 @@ contract OracleTest is Setup {
         assertEq(oracle.merklCampaigns(strategy.vault()).length, 2);
 
         uint256 withRewardsApr = oracle.aprAfterDebtChange(_strategy, 0);
+        assertGt(withRewardsApr, currentApr, "withRewardsApr");
 
-        assertLt(currentApr, withRewardsApr, "withRewardsApr");
+        uint256 withRewardsAprNegativeChange = oracle.aprAfterDebtChange(
+            _strategy,
+            -int256(_delta)
+        );
+        assertLt(
+            withRewardsApr,
+            withRewardsAprNegativeChange,
+            "withRewardsAprNegativeChange"
+        );
+
+        uint256 withRewardsAprPositiveChange = oracle.aprAfterDebtChange(
+            _strategy,
+            int256(_delta)
+        );
+        assertGt(
+            withRewardsApr,
+            withRewardsAprPositiveChange,
+            "withRewardsAprPositiveChange"
+        );
 
         vm.expectRevert("!governance");
         vm.prank(user);
@@ -86,15 +102,13 @@ contract OracleTest is Setup {
     }
 
     function test_oracle(uint256 _amount, uint16 _percentChange) public {
-        _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
-        _percentChange = uint16(bound(uint256(_percentChange), 10, MAX_BPS));
-
-        mintAndDepositIntoStrategy(strategy, user, _amount);
-
+        _amount = bound(_amount, minFuzzAmount * 100, maxFuzzAmount);
+        _percentChange = uint16(
+            bound(uint256(_percentChange), 10, MAX_BPS - 1)
+        );
         uint256 _delta = (_amount * _percentChange) / MAX_BPS;
 
+        mintAndDepositIntoStrategy(strategy, user, _amount);
         checkOracle(address(strategy), _delta);
     }
-
-    // TODO: Deploy multiple strategies with different tokens as `asset` to test against the oracle.
 }

@@ -49,12 +49,9 @@ contract EulerVaultAprOracle is AprOracleBase, Multicall {
             _strategy
         );
         IEVault _eVault = IEVault(_eulerStrategy.vault());
+        uint256 _strategyTotalAssets = _eulerStrategy.totalAssets();
 
-        uint256 _newTotalAssets = uint256(
-            int256(_eulerStrategy.totalAssets()) + _delta
-        );
-
-        if (_newTotalAssets < 0) return 0;
+        if (int256(_strategyTotalAssets) <= -_delta) return 0;
 
         uint256[] memory _cash = new uint256[](1);
         _cash[0] = _eVault.cash();
@@ -68,8 +65,6 @@ contract EulerVaultAprOracle is AprOracleBase, Multicall {
             .getVaultInterestRateModelInfo(address(_eVault), _cash, _borrows);
 
         _apr = _info.interestRateInfo[0].supplyAPY / 1e9;
-
-        if (_newTotalAssets == 0) return _apr;
 
         uint256 _eulPerWeek = (reulPerSecond(address(_eVault)) * 7 days) / 5; // rEUL vests 20% immediately, thus divide by 5
         if (_eulPerWeek == 0) return _apr;
@@ -90,7 +85,7 @@ contract EulerVaultAprOracle is AprOracleBase, Multicall {
                 _eulerStrategy.uniFees(EUL, WETH),
                 _asset == WETH ? 0 : _eulerStrategy.uniFees(WETH, _asset)
             ) * 52) * 1e18) /
-            _newTotalAssets;
+            uint256(int256(_eulerStrategy.totalAssets()) + _delta);
     }
 
     /// @notice Get all merkl campaigns for a given eVault
