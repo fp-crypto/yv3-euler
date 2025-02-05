@@ -10,8 +10,7 @@ contract OracleTest is Setup {
 
     function setUp() public override {
         super.setUp();
-        vm.prank(management);
-        oracle = new StrategyAprOracle();
+        oracle = new StrategyAprOracle(management);
     }
 
     function checkOracle(address _strategy, uint256 _delta) public {
@@ -84,12 +83,10 @@ contract OracleTest is Setup {
         oracle.reepStaleCampaigns(_targets);
 
         assertEq(oracle.merklCampaigns(strategy.vault()).length, 0);
-
-        assertFalse(true);
     }
 
-    function test_oracle(/*uint256 _amount,*/ uint16 _percentChange) public {
-        uint256 _amount = 100_000e6; //bound(_amount, minFuzzAmount, maxFuzzAmount);
+    function test_oracle(uint256 _amount, uint16 _percentChange) public {
+        _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
         _percentChange = uint16(bound(uint256(_percentChange), 10, MAX_BPS));
 
         mintAndDepositIntoStrategy(strategy, user, _amount);

@@ -12,10 +12,13 @@ import {Multicall} from "@openzeppelin/contracts/utils/Multicall.sol";
 contract EulerVaultAprOracle is AprOracleBase, Multicall {
     using EnumerableSet for EnumerableSet.Bytes32Set;
 
+    /// @notice The Euler Protocol's VaultLens contract for querying vault information
     IVaultLens public constant VAULT_LENS =
         IVaultLens(0xE4044D26C879f58Acc97f27db04c1686fa9ED29E);
+    /// @notice The Uniswap V3 Router contract address used for swap simulations
     address public constant UNISWAP_V3_ROUTER =
         0xE592427A0AEce92De3Edee1F18E0157C05861564;
+    /// @notice The Euler Protocol's EUL token contract address
     address public constant EUL = 0xd9Fcd98c322942075A5C3860693e9f4f03AAE07b;
     /// @notice The Wrapped Ether contract address
     address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
@@ -28,7 +31,12 @@ contract EulerVaultAprOracle is AprOracleBase, Multicall {
 
     mapping(address => EnumerableSet.Bytes32Set) private _merklCampaigns;
 
-    constructor() AprOracleBase("Euler Vault Apr Oracle", msg.sender) {}
+    constructor(address _governance)
+        AprOracleBase(
+            "Euler Vault Apr Oracle",
+            _governance
+        )
+    {}
 
     /**
      * @notice Will return the expected APR of a Euler Vault post a supply change.
@@ -61,8 +69,12 @@ contract EulerVaultAprOracle is AprOracleBase, Multicall {
         uint256 _eulPerWeek = (reulPerSecond(address(_eVault)) * 7 days) / 5; // rEUL vests 20% immediately, thus divide by 5
         if (_eulPerWeek == 0) return _apr;
 
-        uint256 _eVaultShare = (_eVault.balanceOf(address(_eulerStrategy)) *
-            1e18) / (_eVault.totalSupply());
+        int256 _evaultDelta = _delta >= 0
+            ? int256(_eVault.convertToShares(uint256(_delta)))
+            : -int256(_eVault.convertToShares(uint256(-_delta)));
+        uint256 _eVaultShare = (uint256(
+            int256(_eVault.balanceOf(_strategy)) + _evaultDelta
+        ) * 1e18) / uint256(int256(_eVault.totalSupply()) + _evaultDelta);
 
         address _asset = _eulerStrategy.asset();
 
@@ -76,6 +88,9 @@ contract EulerVaultAprOracle is AprOracleBase, Multicall {
             _eulerStrategy.totalAssets();
     }
 
+    /// @notice Get all merkl campaigns for a given eVault
+    /// @param _eVault The address of the eVault to get campaigns for
+    /// @return _campaigns Array of MerklCampaign structs for the eVault
     function merklCampaigns(
         address _eVault
     ) public view returns (MerklCampaign[] memory _campaigns) {
@@ -87,6 +102,9 @@ contract EulerVaultAprOracle is AprOracleBase, Multicall {
         }
     }
 
+    /// @notice Calculate the current rEUL rewards per second for a given eVault
+    /// @param _eVault The address of the eVault to calculate rewards for
+    /// @return _reulPerSecond The amount of rEUL rewards per second
     function reulPerSecond(
         address _eVault
     ) public view returns (uint256 _reulPerSecond) {
@@ -105,6 +123,10 @@ contract EulerVaultAprOracle is AprOracleBase, Multicall {
         }
     }
 
+    /// @notice Add new merkl campaigns for multiple eVaults
+    /// @param _targets Array of eVault addresses to add campaigns for
+    /// @param _campaigns Array of MerklCampaign structs to add
+    /// @dev Only callable by governance
     function addCampaigns(
         address[] calldata _targets,
         MerklCampaign[] calldata _campaigns
@@ -119,6 +141,9 @@ contract EulerVaultAprOracle is AprOracleBase, Multicall {
         }
     }
 
+    /// @notice Remove expired campaigns from multiple eVaults
+    /// @param _targets Array of eVault addresses to clean up
+    /// @dev Only callable by governance
     function reepStaleCampaigns(
         address[] calldata _targets
     ) external onlyGovernance {
@@ -136,6 +161,12 @@ contract EulerVaultAprOracle is AprOracleBase, Multicall {
         }
     }
 
+    /// @notice Convert an amount of EUL tokens to the equivalent value in a target asset
+    /// @param _eulAmount Amount of EUL tokens to convert
+    /// @param _asset Target asset address to convert to
+    /// @param _eulWethFee Uniswap V3 fee tier for EUL/WETH pool
+    /// @param _wethAssetFee Uniswap V3 fee tier for WETH/asset pool
+    /// @return _assetAmount The equivalent amount in the target asset
     function eulInAsset(
         uint256 _eulAmount,
         address _asset,
