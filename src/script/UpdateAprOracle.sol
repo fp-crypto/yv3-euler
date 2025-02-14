@@ -9,7 +9,7 @@ import {EulerCompounderStrategy} from "../Strategy.sol";
 import {StrategyFactory} from "../StrategyFactory.sol";
 
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {Strings} from "./lib/Strings.sol";
 
 /// @title UpdateAprOracle Script
 /// @notice This script manages Merkl campaign data for Euler vaults by fetching new campaigns and cleaning up expired ones
@@ -81,7 +81,7 @@ contract UpdateAprOracle is Script {
             inputs[1] = "-s"; // silent mode
             inputs[2] = string.concat(
                 "https://api.merkl.xyz/v4/campaigns?tokenSymbol=rEUL&mainParameter=",
-                toChecksumHexString(eulerVault),
+                Strings.toChecksumHexString(eulerVault),
                 "&endTimestamp=",
                 Strings.toString(block.timestamp)
             );
@@ -104,9 +104,7 @@ contract UpdateAprOracle is Script {
             Campaign[] memory campaigns = abi.decode(data, (Campaign[]));
 
             for (uint256 j; j < campaigns.length; ++j) {
-                uint256 _lengthBefore = aprOracle
-                    .merklCampaigns(eulerVault)
-                    .length;
+                lengthBefore = aprOracle.merklCampaigns(eulerVault).length;
                 address[] memory _target = new address[](1);
                 EulerVaultAprOracle.MerklCampaign[]
                     memory _merklCampaign = new EulerVaultAprOracle.MerklCampaign[](
@@ -120,9 +118,8 @@ contract UpdateAprOracle is Script {
                 });
                 aprOracle.addCampaigns(_target, _merklCampaign);
 
-                if (
-                    _lengthBefore == aprOracle.merklCampaigns(eulerVault).length
-                ) continue;
+                if (lengthBefore == aprOracle.merklCampaigns(eulerVault).length)
+                    continue;
 
                 campaignTargets.push(eulerVault);
                 merklCampaigns.push(_merklCampaign[0]);
@@ -167,32 +164,5 @@ contract UpdateAprOracle is Script {
         }
 
         return true;
-    }
-
-    /// @notice Converts an address to its EIP-55 compliant checksummed string representation
-    /// @dev Converts an `address` with fixed length of 20 bytes to its checksummed ASCII
-    ///      string` hexadecimal representation, according to EIP-55
-    /// @param addr The address to convert
-    /// @return The checksummed hex string
-    function toChecksumHexString(
-        address addr
-    ) internal pure returns (string memory) {
-        bytes memory buffer = bytes(Strings.toHexString(addr));
-
-        // hash the hex part of buffer (skip length + 2 bytes, length 40)
-        uint256 hashValue;
-        assembly ("memory-safe") {
-            hashValue := shr(96, keccak256(add(buffer, 0x22), 40))
-        }
-
-        for (uint256 i = 41; i > 1; --i) {
-            // possible values for buffer[i] are 48 (0) to 57 (9) and 97 (a) to 102 (f)
-            if (hashValue & 0xf > 7 && uint8(buffer[i]) > 96) {
-                // case shift by xoring with 0x20
-                buffer[i] ^= 0x20;
-            }
-            hashValue >>= 4;
-        }
-        return string(buffer);
     }
 }
