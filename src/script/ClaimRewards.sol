@@ -4,11 +4,9 @@ pragma solidity ^0.8.18;
 import "forge-std/console.sol";
 import "forge-std/Script.sol";
 
-import {EulerVaultAprOracle} from "../periphery/StrategyAprOracle.sol";
 import {EulerCompounderStrategy} from "../Strategy.sol";
 import {StrategyFactory} from "../StrategyFactory.sol";
 
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Strings} from "./lib/Strings.sol";
 
 /// @title ClaimRewards Script
