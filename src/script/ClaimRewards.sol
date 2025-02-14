@@ -11,19 +11,24 @@ import {StrategyFactory} from "../StrategyFactory.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Strings} from "./lib/Strings.sol";
 
-/// @title UpdateAprOracle Script
-/// @notice This script manages Merkl campaign data for Euler vaults by fetching new campaigns and cleaning up expired ones
-/// @dev Uses Foundry's FFI for API requests and optimizes gas usage through multicalls
+/// @title ClaimRewards Script
+/// @notice Script to claim Merkl rewards for Euler Compounder strategies
+/// @dev Uses Foundry's FFI capabilities to fetch reward data from Merkl API and execute claims
 contract ClaimRewards is Script {
     using Strings for string;
 
-    /// @notice Array of Euler Compounder strategies to manage campaign data for
-    /// @dev Hardcoded strategy addresses for which to fetch and update campaign data
+    /// @notice Array of Euler Compounder strategies to claim rewards for
+    /// @dev Hardcoded strategy addresses that will receive their Merkl rewards
     EulerCompounderStrategy[2] private strategies = [
         EulerCompounderStrategy(0xa08CEb657D9A8035A44A1b44b8d4C42eC31Dd4D4),
         EulerCompounderStrategy(0xaf48f006e75AF050c4136F5a32B69e3FE1C4140f)
     ];
 
+    /// @notice Structure to hold parsed Merkl reward claim data
+    /// @param amounts Array of reward amounts as strings (to be parsed to uint256)
+    /// @param proofs Merkle proofs required to verify and claim rewards
+    /// @param tokens Array of reward token addresses
+    /// @param users Array of recipient addresses for the rewards
     struct ClaimData {
         string[] amounts;
         bytes32[][] proofs;
@@ -31,16 +36,12 @@ contract ClaimRewards is Script {
         address[] users;
     }
 
-    /// @notice Accumulated multicall data for batch processing campaign updates
-    /// @dev Contains encoded function calls for reepStaleCampaigns and addCampaigns
-    bytes[] internal _multicallData;
-
     /// @notice Main script execution function
     /// @dev For each strategy:
-    ///      1. Removes expired campaigns
-    ///      2. Fetches active campaigns from Merkl API
-    ///      3. Adds new campaigns to the oracle
-    ///      4. Batches operations into multicalls for gas optimization
+    ///      1. Fetches available rewards from Merkl API
+    ///      2. Parses the JSON response to extract claim data
+    ///      3. Converts string amounts to uint256
+    ///      4. Executes the claim transaction if rewards are available
     function run() external {
         if (!_baseFeeOkay()) return;
 
