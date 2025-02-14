@@ -140,7 +140,8 @@ contract UpdateAprOracle is Script {
 
         vm.startBroadcast(aprOracle.governance());
         if (_multicallData.length == 1) {
-            address(aprOracle).call(_multicallData[0]);
+            (bool success, ) = address(aprOracle).call(_multicallData[0]);
+            require(success, "call failed!");
         } else if (_multicallData.length != 0) {
             aprOracle.multicall(_multicallData);
         }
