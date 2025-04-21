@@ -6,10 +6,9 @@ import {IBase4626Compounder} from "@periphery/Bases/4626Compounder/IBase4626Comp
 interface IStrategyInterface is IBase4626Compounder {
     /// @notice The Euler reward token contract
     function REUL() external view returns (address);
+
     /// @notice The EUL token contract
     function EUL() external view returns (address);
-    /// @notice The Wrapped Native token address
-    function WRAPPED_NATIVE() external view returns (address);
 
     function MERKL_DISTRIBUTOR() external view returns (address);
 
@@ -33,7 +32,10 @@ interface IStrategyInterface is IBase4626Compounder {
     /// @notice Sets the minimum amount of a token required to trigger an auction
     /// @param _token Address of the token
     /// @param _minAmountToAuction Minimum amount of tokens needed to start an auction
-    function setMinAmountToAuction(address _token, uint256 _minAmountToAuction) external;
+    function setMinAmountToAuction(
+        address _token,
+        uint256 _minAmountToAuction
+    ) external;
 
     /// @notice Initiates an auction for a given token
     /// @param _from The token to be sold in the auction

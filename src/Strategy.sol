@@ -18,9 +18,6 @@ contract EulerCompounderStrategy is Base4626Compounder {
     /// @notice The EUL token contract (underlying of REUL)
     ERC20 public immutable EUL;
     
-    /// @notice The Wrapped Native token address (e.g., WETH on Ethereum, WSONIC on Sonic)
-    address public immutable WRAPPED_NATIVE;
-
     /// @notice The Merkl Distributor contract for claiming rewards
     /// @dev Hardcoded address of the official Merkl distributor
     IMerklDistributor public constant MERKL_DISTRIBUTOR =
@@ -41,15 +38,12 @@ contract EulerCompounderStrategy is Base4626Compounder {
     /// @notice Initializes the Euler compounder strategy
     /// @param _vault Address of the underlying vault
     /// @param _name Name of the strategy token
-    /// @param _wrappedNative Address of the wrapped native token for the chain
     /// @param _reul Address of the REUL token contract (can be address(0) if not using REUL)
     constructor(
         address _vault,
         string memory _name,
-        address _wrappedNative,
         address _reul
     ) Base4626Compounder(IStrategy(_vault).asset(), _name, _vault) {
-        _wrappedNative = WRAPPED_NATIVE;
         if (_reul != address(0)) {
             REUL = IRewardToken(_reul);
             EUL = ERC20(IRewardToken(_reul).underlying());

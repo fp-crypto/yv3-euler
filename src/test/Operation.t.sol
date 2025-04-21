@@ -19,6 +19,8 @@ contract OperationTest is Setup {
         assertEq(strategy.performanceFeeRecipient(), performanceFeeRecipient);
         assertEq(strategy.keeper(), keeper);
         assertTrue(strategyFactory.isDeployedStrategy(address(strategy)));
+        assertEq(strategy.REUL(), tokenAddrs["rEUL"]);
+        assertEq(strategy.EUL(), tokenAddrs["EUL"]);
     }
 
     function test_operation(uint256 _amount) public {
@@ -327,6 +329,56 @@ contract OperationTest is Setup {
         assertGe(
             asset.balanceOf(user),
             balanceBefore + _amount,
+            "!final balance"
+        );
+    }
+
+    function test_airdroppedREULUnwrapped(
+        uint256 _amount,
+        uint256 _airdropAmount
+    ) public {
+        _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
+        _airdropAmount = bound(
+            _airdropAmount,
+            1e6,
+            Math.min(
+                ERC20(strategy.EUL()).balanceOf(strategy.REUL()),
+                _amount / 10
+            )
+        );
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        assertEq(strategy.totalAssets(), _amount, "!totalAssets");
+
+        airdropREUL(address(strategy), _airdropAmount);
+
+        vm.prank(management);
+        strategy.setDoHealthCheck(false);
+
+        // Report profit
+        vm.prank(keeper);
+        (uint256 profit, uint256 loss) = strategy.report();
+
+        // Check return Values
+        assertEq(profit, 0, "!profit");
+        assertApproxEqAbs(loss, 0, 0.001e6, "!loss");
+
+        assertGt(ERC20(strategy.EUL()).balanceOf(address(strategy)), 0, "!eul");
+
+        skip(strategy.profitMaxUnlockTime());
+
+        uint256 balanceBefore = asset.balanceOf(user);
+
+        // Withdraw all funds
+        vm.prank(user);
+        strategy.redeem(_amount, user, user);
+
+        assertApproxEqAbs(
+            asset.balanceOf(user),
+            balanceBefore + _amount,
+            1,
             "!final balance"
         );
     }

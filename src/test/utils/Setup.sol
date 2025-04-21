@@ -65,8 +65,7 @@ contract Setup is ExtendedTest, IEvents {
             performanceFeeRecipient,
             keeper,
             emergencyAdmin,
-            tokenAddrs["wS"],
-            address(0)
+            tokenAddrs["rEUL"]
         );
 
         // Deploy strategy and set variables
@@ -184,6 +183,8 @@ contract Setup is ExtendedTest, IEvents {
     }
 
     function _setTokenAddrs() internal {
+        tokenAddrs["rEUL"] = 0x09E6cab47B7199b9d3839A2C40654f246d518a80;
+        tokenAddrs["EUL"] = 0x8e15C8D399e86d4FD7B427D42f06c60cDD9397e7;
         tokenAddrs["wS"] = 0x039e2fB66102314Ce7b64Ce5Ce3E5183bc94aD38;
         tokenAddrs["USDC.e"] = 0x29219dd400f2Bf60E5a23d13Be72B486D4038894;
         tokenAddrs["eUSDC.e"] = 0x196F3C7443E940911EE2Bb88e019Fd71400349D9;

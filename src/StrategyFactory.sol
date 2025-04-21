@@ -17,9 +17,6 @@ contract StrategyFactory {
     /// @notice Address with emergency shutdown powers for all strategies
     address public immutable emergencyAdmin;
 
-    /// @notice The Wrapped Native token address for the current chain
-    address public immutable WRAPPED_NATIVE;
-
     /// @notice The REUL token address (can be address(0) if not using REUL)
     address public immutable REUL;
 
@@ -44,21 +41,18 @@ contract StrategyFactory {
     /// @param _performanceFeeRecipient Address that will receive performance fees
     /// @param _keeper Address that will be able to tend/harvest strategies
     /// @param _emergencyAdmin Address that will have emergency powers
-    /// @param _wrappedNative Address of the wrapped native token for the chain
     /// @param _reul Address of the REUL token (can be address(0) if not using REUL)
     constructor(
         address _management,
         address _performanceFeeRecipient,
         address _keeper,
         address _emergencyAdmin,
-        address _wrappedNative,
         address _reul
     ) {
         management = _management;
         performanceFeeRecipient = _performanceFeeRecipient;
         keeper = _keeper;
         emergencyAdmin = _emergencyAdmin;
-        WRAPPED_NATIVE = _wrappedNative;
         REUL = _reul;
     }
 
@@ -76,7 +70,7 @@ contract StrategyFactory {
 
         // Deploy new strategy with appropriate parameters
         IStrategyInterface _newStrategy = IStrategyInterface(
-            address(new Strategy(_baseVault, _name, WRAPPED_NATIVE, REUL))
+            address(new Strategy(_baseVault, _name, REUL))
         );
 
         address _management = management;
