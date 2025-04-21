@@ -4,9 +4,10 @@ pragma solidity ^0.8.18;
 import "forge-std/console2.sol";
 import {ExtendedTest} from "./ExtendedTest.sol";
 
-import {EulerCompounderStrategy as Strategy, ERC20, IStrategy} from "../../Strategy.sol";
+import {ERC20, IStrategy} from "../../Strategy.sol";
 import {StrategyFactory} from "../../StrategyFactory.sol";
 import {IStrategyInterface} from "../../interfaces/IStrategyInterface.sol";
+import {IAuctionFactory} from "../../interfaces/IAuctionFactory.sol";
 
 // Inherit the events so they can be checked if desired.
 import {IEvents} from "@tokenized-strategy/interfaces/IEvents.sol";
@@ -41,9 +42,8 @@ contract Setup is ExtendedTest, IEvents {
 
     // Integer variables that will be used repeatedly.
     uint256 public decimals;
-    uint256 public MAX_BPS = 10_000;
+    uint256 public constant MAX_BPS = 10_000;
 
-    // Fuzz from $0.01 of 1e6 stable coins up to 1 trillion of a 1e18 coin
     uint256 public maxFuzzAmount = 10_000_000e6;
     uint256 public minFuzzAmount = 100e6;
 
@@ -54,8 +54,8 @@ contract Setup is ExtendedTest, IEvents {
         _setTokenAddrs();
 
         // Set asset
-        asset = ERC20(tokenAddrs["USDC"]);
-        vault = IStrategyInterface(address(tokenAddrs["eUSDC"]));
+        asset = ERC20(tokenAddrs["USDC.e"]);
+        vault = IStrategyInterface(address(tokenAddrs["eUSDC.e"]));
 
         // Set decimals
         decimals = asset.decimals();
@@ -64,7 +64,9 @@ contract Setup is ExtendedTest, IEvents {
             management,
             performanceFeeRecipient,
             keeper,
-            emergencyAdmin
+            emergencyAdmin,
+            tokenAddrs["wS"],
+            address(0)
         );
 
         // Deploy strategy and set variables
@@ -89,8 +91,7 @@ contract Setup is ExtendedTest, IEvents {
             address(
                 strategyFactory.newStrategy(
                     address(vault),
-                    "Tokenized Strategy",
-                    500
+                    "Tokenized Strategy"
                 )
             )
         );
@@ -170,14 +171,21 @@ contract Setup is ExtendedTest, IEvents {
         strategy.setPerformanceFee(_performanceFee);
     }
 
+    function _createAuction(
+        IStrategyInterface _strategy
+    ) internal returns (address) {
+        return
+            IAuctionFactory(0xCfA510188884F199fcC6e750764FAAbE6e56ec40)
+                .createNewAuction(
+                    _strategy.asset(),
+                    address(_strategy),
+                    management
+                );
+    }
+
     function _setTokenAddrs() internal {
-        tokenAddrs["WBTC"] = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
-        tokenAddrs["YFI"] = 0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e;
-        tokenAddrs["WETH"] = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-        tokenAddrs["LINK"] = 0x514910771AF9Ca656af840dff83E8264EcF986CA;
-        tokenAddrs["USDT"] = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
-        tokenAddrs["DAI"] = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-        tokenAddrs["USDC"] = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-        tokenAddrs["eUSDC"] = 0x797DD80692c3b2dAdabCe8e30C07fDE5307D48a9;
+        tokenAddrs["wS"] = 0x039e2fB66102314Ce7b64Ce5Ce3E5183bc94aD38;
+        tokenAddrs["USDC.e"] = 0x29219dd400f2Bf60E5a23d13Be72B486D4038894;
+        tokenAddrs["eUSDC.e"] = 0x196F3C7443E940911EE2Bb88e019Fd71400349D9;
     }
 }

@@ -9,6 +9,22 @@ import {StrategyFactory} from "../StrategyFactory.sol";
 
 import {Strings} from "./lib/Strings.sol";
 
+interface MultiSendCallOnly {
+    /// @dev Sends multiple transactions and reverts all if one fails.
+    /// @param transactions Encoded transactions. Each transaction is encoded as a packed bytes of
+    ///                     operation has to be uint8(0) in this version (=> 1 byte),
+    ///                     to as a address (=> 20 bytes),
+    ///                     value as a uint256 (=> 32 bytes),
+    ///                     data length as a uint256 (=> 32 bytes),
+    ///                     data as bytes.
+    ///                     see abi.encodePacked for more information on packed encoding
+    /// @notice The code is for most part the same as the normal MultiSend (to keep compatibility),
+    ///         but reverts if a transaction tries to use a delegatecall.
+    /// @notice This method is payable as delegatecalls keep the msg.value from the previous call
+    ///         If the calling method (e.g. execTransaction) received ETH this would revert otherwise
+    function multiSend(bytes memory transactions) external payable;
+}
+
 /// @title ClaimRewards Script
 /// @notice Script to claim Merkl rewards for Euler Compounder strategies
 /// @dev Uses Foundry's FFI capabilities to fetch reward data from Merkl API and execute claims
@@ -21,6 +37,11 @@ contract ClaimRewards is Script {
         EulerCompounderStrategy(0xa08CEb657D9A8035A44A1b44b8d4C42eC31Dd4D4),
         EulerCompounderStrategy(0xaf48f006e75AF050c4136F5a32B69e3FE1C4140f)
     ];
+
+    MultiSendCallOnly private multiSend =
+        MultiSendCallOnly(0x40A2aCCbd92BCA938b02010E17A5b8929b49130D);
+
+    bytes private multiSendData;
 
     /// @notice Structure to hold parsed Merkl reward claim data
     /// @param amounts Array of reward amounts as strings (to be parsed to uint256)
@@ -92,15 +113,28 @@ contract ClaimRewards is Script {
                 amounts[j] = claimData.amounts[j].parseUint();
             }
 
-            vm.startBroadcast();
-            strategy.claim(
-                claimData.users,
-                claimData.tokens,
-                amounts,
-                claimData.proofs
+            bytes memory strategyClaimData = abi.encodeCall(
+                strategy.claim,
+                (claimData.users, claimData.tokens, amounts, claimData.proofs)
             );
-            vm.stopBroadcast();
+
+            multiSendData = bytes.concat(
+                multiSendData,
+                abi.encodePacked(
+                    uint8(0), // operation
+                    strategy, // to
+                    uint256(0), // value
+                    strategyClaimData.length, // dataLength
+                    strategyClaimData // data
+                )
+            );
         }
+
+        if (multiSendData.length == 0) return;
+
+        vm.startBroadcast();
+        multiSend.multiSend(multiSendData);
+        vm.stopBroadcast();
     }
 
     /// @notice Checks if the current network base fee is below the configured limit

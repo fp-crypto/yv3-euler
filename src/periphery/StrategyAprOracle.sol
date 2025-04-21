@@ -48,44 +48,55 @@ contract EulerVaultAprOracle is AprOracleBase, Multicall {
         IEulerCompounderStrategy _eulerStrategy = IEulerCompounderStrategy(
             _strategy
         );
-        IEVault _eVault = IEVault(_eulerStrategy.vault());
-        uint256 _strategyTotalAssets = _eulerStrategy.totalAssets();
+        address _eVault = _eulerStrategy.vault();
+        _apr = eVaultApr(_eVault, _delta);
+    }
 
-        if (int256(_strategyTotalAssets) <= -_delta) return 0;
+    //    uint256 _eulPerWeek = (reulPerSecond(address(_eVault)) * 7 days) / 5; // rEUL vests 20% immediately, thus divide by 5
+    //    if (_eulPerWeek == 0) return _apr;
 
+    //    int256 _evaultDelta = _delta >= 0
+    //        ? int256(_eVault.convertToShares(uint256(_delta)))
+    //        : -int256(_eVault.convertToShares(uint256(-_delta)));
+    //    uint256 _eVaultShare = (uint256(
+    //        int256(_eVault.balanceOf(_strategy)) + _evaultDelta
+    //    ) * 1e18) / uint256(int256(_eVault.totalSupply()) + _evaultDelta);
+
+    //    address _asset = _eulerStrategy.asset();
+
+    //    _apr +=
+    //        ((eulInAsset(
+    //            (_eulPerWeek * _eVaultShare) / 1e18,
+    //            _asset,
+    //            _eulerStrategy.uniFees(EUL, WETH),
+    //            _asset == WETH ? 0 : _eulerStrategy.uniFees(WETH, _asset)
+    //        ) * 52) * 1e18) /
+    //        uint256(int256(_eulerStrategy.totalAssets()) + _delta);
+    //}
+
+    /**
+     * @notice Calculate the base APR for an Euler Vault
+     * @dev Optimized for L2 networks with wrapped native token focus
+     * @param _eVault The euler vault address
+     * @param _delta The difference in supply
+     * @return _apr The base APR for the vault represented as 1e18
+     */
+    function eVaultApr(
+        address _eVault,
+        int256 _delta
+    ) public view virtual returns (uint256 _apr) {
         uint256[] memory _cash = new uint256[](1);
-        _cash[0] = _eVault.cash();
+        _cash[0] = IEVault(_eVault).cash();
         require(int256(_cash[0]) >= -_delta, "delta too big"); // dev: _delta too big
         _cash[0] = uint256(int256(_cash[0]) + _delta);
 
         uint256[] memory _borrows = new uint256[](1);
-        _borrows[0] = _eVault.totalBorrows();
+        _borrows[0] = IEVault(_eVault).totalBorrows();
 
         IVaultLens.VaultInterestRateModelInfo memory _info = VAULT_LENS
-            .getVaultInterestRateModelInfo(address(_eVault), _cash, _borrows);
+            .getVaultInterestRateModelInfo(_eVault, _cash, _borrows);
 
         _apr = _info.interestRateInfo[0].supplyAPY / 1e9;
-
-        uint256 _eulPerWeek = (reulPerSecond(address(_eVault)) * 7 days) / 5; // rEUL vests 20% immediately, thus divide by 5
-        if (_eulPerWeek == 0) return _apr;
-
-        int256 _evaultDelta = _delta >= 0
-            ? int256(_eVault.convertToShares(uint256(_delta)))
-            : -int256(_eVault.convertToShares(uint256(-_delta)));
-        uint256 _eVaultShare = (uint256(
-            int256(_eVault.balanceOf(_strategy)) + _evaultDelta
-        ) * 1e18) / uint256(int256(_eVault.totalSupply()) + _evaultDelta);
-
-        address _asset = _eulerStrategy.asset();
-
-        _apr +=
-            ((eulInAsset(
-                (_eulPerWeek * _eVaultShare) / 1e18,
-                _asset,
-                _eulerStrategy.uniFees(EUL, WETH),
-                _asset == WETH ? 0 : _eulerStrategy.uniFees(WETH, _asset)
-            ) * 52) * 1e18) /
-            uint256(int256(_eulerStrategy.totalAssets()) + _delta);
     }
 
     /// @notice Get all merkl campaigns for a given eVault

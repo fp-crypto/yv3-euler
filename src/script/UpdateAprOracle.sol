@@ -15,9 +15,10 @@ import {Strings} from "./lib/Strings.sol";
 contract UpdateAprOracle is Script {
     /// @notice Array of Euler Compounder strategies to manage campaign data for
     /// @dev Hardcoded strategy addresses for which to fetch and update campaign data
-    EulerCompounderStrategy[2] private strategies = [
+    EulerCompounderStrategy[3] private strategies = [
         EulerCompounderStrategy(0xa08CEb657D9A8035A44A1b44b8d4C42eC31Dd4D4),
-        EulerCompounderStrategy(0xaf48f006e75AF050c4136F5a32B69e3FE1C4140f)
+        EulerCompounderStrategy(0xaf48f006e75AF050c4136F5a32B69e3FE1C4140f),
+        EulerCompounderStrategy(0x54C527CB4Dc6f79867A74f3117Cd529c4774B643)
     ];
 
     /// @notice Reference to the APR Oracle contract that stores campaign data
@@ -138,10 +139,12 @@ contract UpdateAprOracle is Script {
                 )
             );
 
+        if (_multicallData.length == 0) return;
+
         vm.startBroadcast(aprOracle.governance());
         if (_multicallData.length == 1) {
             (bool success, ) = address(aprOracle).call(_multicallData[0]);
-            require(success, "call failed!");
+            require(success, "call failed");
         } else if (_multicallData.length != 0) {
             aprOracle.multicall(_multicallData);
         }

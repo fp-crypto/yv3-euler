@@ -3,6 +3,7 @@ pragma solidity ^0.8.18;
 
 import "forge-std/console2.sol";
 import {Setup, ERC20, IStrategyInterface} from "./utils/Setup.sol";
+import {IAuction} from "../interfaces/IAuction.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 contract OperationTest is Setup {
@@ -56,13 +57,13 @@ contract OperationTest is Setup {
 
     function test_profitableReport(
         uint256 _amount,
-        uint256 _reulRewardAmount
+        uint256 _airdropAmount
     ) public {
         _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
-        _reulRewardAmount = bound(
-            _reulRewardAmount,
-            (strategy.minAmountToSell() * 10) / 2,
-            Math.min((_amount * 1e12) / 10, maxREUL()) // airdrop no more than 10% of the strategy value
+        _airdropAmount = bound(
+            _airdropAmount,
+            0.1e6,
+            _amount / 100 // no more than 1%
         );
 
         // Deposit into strategy
@@ -72,7 +73,7 @@ contract OperationTest is Setup {
 
         // Earn Interest and rewards
         skip(1 days);
-        airdropREUL(address(strategy), _reulRewardAmount);
+        airdrop(ERC20(strategy.asset()), address(strategy), _airdropAmount);
 
         // Report profit
         vm.prank(keeper);
@@ -99,13 +100,13 @@ contract OperationTest is Setup {
 
     function test_profitableReportBaseThenAirdrop(
         uint256 _amount,
-        uint256 _reulRewardAmount
+        uint256 _airdropAmount
     ) public {
         _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
-        _reulRewardAmount = bound(
-            _reulRewardAmount,
-            (strategy.minAmountToSell() * 10) / 2,
-            Math.min((_amount * 1e12) / 10, maxREUL()) // airdrop no more than 10% of the strategy value
+        _airdropAmount = bound(
+            _airdropAmount,
+            0.1e6,
+            _amount / 100 // no more than 1%
         );
 
         // Deposit into strategy
@@ -126,7 +127,7 @@ contract OperationTest is Setup {
 
         skip(strategy.profitMaxUnlockTime());
 
-        airdropREUL(address(strategy), _reulRewardAmount);
+        airdrop(ERC20(strategy.asset()), address(strategy), _airdropAmount);
 
         // Report profit
         vm.prank(keeper);
@@ -153,13 +154,13 @@ contract OperationTest is Setup {
 
     function test_profitableReportAirdropThenBase(
         uint256 _amount,
-        uint256 _reulRewardAmount
+        uint256 _airdropAmount
     ) public {
         _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
-        _reulRewardAmount = bound(
-            _reulRewardAmount,
-            (strategy.minAmountToSell() * 10) / 2,
-            Math.min((_amount * 1e12) / 10, maxREUL()) // airdrop no more than 10% of the strategy value
+        _airdropAmount = bound(
+            _airdropAmount,
+            0.1e6,
+            _amount / 100 // no more than 1%
         );
 
         // Deposit into strategy
@@ -167,7 +168,7 @@ contract OperationTest is Setup {
 
         assertEq(strategy.totalAssets(), _amount, "!totalAssets");
 
-        airdropREUL(address(strategy), _reulRewardAmount);
+        airdrop(ERC20(strategy.asset()), address(strategy), _airdropAmount);
 
         // Report profit
         vm.prank(keeper);
@@ -203,10 +204,15 @@ contract OperationTest is Setup {
     }
 
     function test_profitableReportAirdropThenBase_DudesVersion(
-        uint256 _amount
+        uint256 _amount,
+        uint256 _airdropAmount
     ) public {
         _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
-        uint256 _reulRewardAmount = Math.min((_amount * 1e12) / 10, maxREUL()); // airdrop no more than 10% of the strategy value
+        _airdropAmount = bound(
+            _airdropAmount,
+            minFuzzAmount / 10,
+            _amount / 10 // no more than 10%
+        );
 
         // Deposit into strategy
         mintAndDepositIntoStrategy(strategy, user, _amount);
@@ -214,7 +220,7 @@ contract OperationTest is Setup {
         assertEq(strategy.totalAssets(), _amount, "!totalAssets");
 
         skip(strategy.profitMaxUnlockTime());
-        airdropREUL(address(strategy), _reulRewardAmount);
+        airdrop(ERC20(strategy.asset()), address(strategy), _airdropAmount);
 
         // Report profit
         vm.prank(keeper);
@@ -286,13 +292,13 @@ contract OperationTest is Setup {
 
     function test_profitableReportOnlyAirdrop(
         uint256 _amount,
-        uint256 _reulRewardAmount
+        uint256 _airdropAmount
     ) public {
         _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
-        _reulRewardAmount = bound(
-            _reulRewardAmount,
-            (strategy.minAmountToSell() * 10) / 2,
-            Math.min((_amount * 1e12) / 10, maxREUL()) // airdrop no more than 10% of the strategy value
+        _airdropAmount = bound(
+            _airdropAmount,
+            0.1e6,
+            _amount / 100 // no more than 1%
         );
 
         // Deposit into strategy
@@ -300,7 +306,7 @@ contract OperationTest is Setup {
 
         assertEq(strategy.totalAssets(), _amount, "!totalAssets");
 
-        airdropREUL(address(strategy), _reulRewardAmount);
+        airdrop(ERC20(strategy.asset()), address(strategy), _airdropAmount);
 
         // Report profit
         vm.prank(keeper);
@@ -326,33 +332,24 @@ contract OperationTest is Setup {
     }
 
     function test_setters(
-        uint96 _minEulToSwap,
-        uint24 _eulToWethSwapFee,
-        uint24 _wethToAssetSwapFee
+        address _auctionToken,
+        uint256 _minAmountToAuction,
+        bool _useAuctions
     ) public {
         vm.expectRevert("!management");
-        strategy.setMinEulToSwap(uint256(_minEulToSwap));
+        strategy.setMinAmountToAuction(_auctionToken, _minAmountToAuction);
         vm.prank(management);
-        strategy.setMinEulToSwap(uint256(_minEulToSwap));
-        assertEq(uint256(_minEulToSwap), strategy.minAmountToSell());
-
-        vm.expectRevert("!management");
-        strategy.setEulToWethSwapFee(_eulToWethSwapFee);
-        vm.prank(management);
-        strategy.setEulToWethSwapFee(_eulToWethSwapFee);
+        strategy.setMinAmountToAuction(_auctionToken, _minAmountToAuction);
         assertEq(
-            _eulToWethSwapFee,
-            strategy.uniFees(strategy.EUL(), strategy.WETH())
+            _minAmountToAuction,
+            strategy.minAmountToAuction(_auctionToken)
         );
 
         vm.expectRevert("!management");
-        strategy.setWethToAssetSwapFee(_wethToAssetSwapFee);
+        strategy.setUseAuctions(_useAuctions);
         vm.prank(management);
-        strategy.setWethToAssetSwapFee(_wethToAssetSwapFee);
-        assertEq(
-            _wethToAssetSwapFee,
-            strategy.uniFees(strategy.WETH(), strategy.asset())
-        );
+        strategy.setUseAuctions(_useAuctions);
+        assertEq(_useAuctions, strategy.useAuctions());
     }
 
     function test_tendTrigger(uint256 _amount) public {
@@ -395,6 +392,63 @@ contract OperationTest is Setup {
     function test_strategyFactoryUnique() public {
         address vault = strategy.vault();
         vm.expectRevert("exists");
-        strategyFactory.newStrategy(vault, "", 0);
+        strategyFactory.newStrategy(vault, "");
+    }
+
+    function test_auction_wS(
+        uint256 _amount,
+        uint256 _wsRewardAmount,
+        bool _newAuction
+    ) public {
+        address wS = tokenAddrs["wS"];
+        _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
+        _wsRewardAmount = bound(_wsRewardAmount, 1, _amount / 20);
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, user, _amount);
+
+        assertEq(strategy.totalAssets(), _amount, "!totalAssets");
+
+        console2.log("Airdropping %s", wS);
+        console2.log("Airdrop amount %e", _wsRewardAmount);
+
+        airdrop(ERC20(wS), address(strategy), _wsRewardAmount);
+
+        vm.startPrank(management);
+        IAuction _auction;
+        if (_newAuction) {
+            _auction = IAuction(_createAuction(strategy));
+            strategy.setAuction(address(_auction));
+            assertEq(address(_auction), strategy.auction(), "!auction");
+        } else {
+            _auction = IAuction(strategy.auction());
+        }
+        strategy.setUseAuctions(true);
+        _auction.enable(wS);
+        vm.stopPrank();
+
+        skip(10 minutes);
+
+        // Report profit
+        vm.prank(keeper);
+        (uint256 profit, uint256 loss) = strategy.report();
+
+        // Check return Values
+        assertGe(profit, 0, "!profit");
+        assertEq(loss, 0, "!loss");
+        assertGe(ERC20(wS).balanceOf(address(strategy)), _wsRewardAmount, "wS");
+
+        skip(strategy.profitMaxUnlockTime());
+
+        vm.expectRevert();
+        strategy.kickAuction(wS);
+
+        vm.prank(keeper);
+        uint256 kicked = strategy.kickAuction(wS);
+
+        assertGe(kicked, _wsRewardAmount, "!kicked");
+        assertEq(ERC20(wS).balanceOf(address(strategy)), 0, "!swap");
+        assertEq(asset.balanceOf(address(strategy)), 0, "!asset");
+        assertTrue(_auction.isActive(wS), "!active");
     }
 }
