@@ -38,7 +38,7 @@ contract EulerCompounderStrategy is Base4626Compounder {
     /// @notice Initializes the Euler compounder strategy
     /// @param _vault Address of the underlying vault
     /// @param _name Name of the strategy token
-    /// @param _reul Address of the REUL token contract (can be address(0) if not using REUL)
+    /// @param _reul Address of the REUL token contract
     constructor(
         address _vault,
         string memory _name,
