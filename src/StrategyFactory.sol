@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.18;
 
-import {EulerCompounderStrategy as Strategy, ERC20} from "./Strategy.sol";
+import {EulerCompounderStrategy as Strategy} from "./Strategy.sol";
 import {IStrategyInterface} from "./interfaces/IStrategyInterface.sol";
 import {IAuctionFactory} from "./interfaces/IAuctionFactory.sol";
 
@@ -13,9 +13,6 @@ contract StrategyFactory {
     /// @param strategy Address of the newly deployed strategy
     /// @param asset Address of the underlying asset for the strategy
     event NewStrategy(address indexed strategy, address indexed asset);
-
-    /// @notice Address with emergency shutdown powers for all strategies
-    address public immutable emergencyAdmin;
 
     /// @notice The REUL token address (can be address(0) if not using REUL)
     address public immutable REUL;
@@ -31,6 +28,9 @@ contract StrategyFactory {
 
     /// @notice Address that can trigger harvests and tends on strategies
     address public keeper;
+
+    /// @notice Address with emergency shutdown powers for all strategies
+    address public immutable emergencyAdmin;
 
     /// @notice Maps base vaults to their corresponding strategies
     /// @dev Tracks deployments to prevent duplicate strategies for the same vault
@@ -72,6 +72,7 @@ contract StrategyFactory {
         IStrategyInterface _newStrategy = IStrategyInterface(
             address(new Strategy(_baseVault, _name, REUL))
         );
+        deployments[_baseVault] = address(_newStrategy);
 
         address _management = management;
         address _asset = _newStrategy.asset();
@@ -88,12 +89,9 @@ contract StrategyFactory {
         _newStrategy.setEmergencyAdmin(emergencyAdmin);
         _newStrategy.setAuction(_auction);
 
-        // Record deployment and emit event
-        address _strategyAddress = address(_newStrategy);
-        deployments[_baseVault] = _strategyAddress;
-        emit NewStrategy(_strategyAddress, _asset);
+        emit NewStrategy(address(_newStrategy), _asset);
 
-        return _strategyAddress;
+        return address(_newStrategy);
     }
 
     /// @notice Updates the core protocol roles

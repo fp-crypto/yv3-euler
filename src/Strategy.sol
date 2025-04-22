@@ -14,10 +14,10 @@ contract EulerCompounderStrategy is Base4626Compounder {
 
     /// @notice The Euler reward token contract (REUL)
     IRewardToken public immutable REUL;
-    
+
     /// @notice The EUL token contract (underlying of REUL)
     ERC20 public immutable EUL;
-    
+
     /// @notice The Merkl Distributor contract for claiming rewards
     /// @dev Hardcoded address of the official Merkl distributor
     IMerklDistributor public constant MERKL_DISTRIBUTOR =
@@ -44,16 +44,14 @@ contract EulerCompounderStrategy is Base4626Compounder {
         string memory _name,
         address _reul
     ) Base4626Compounder(IStrategy(_vault).asset(), _name, _vault) {
-        if (_reul != address(0)) {
-            REUL = IRewardToken(_reul);
-            EUL = ERC20(IRewardToken(_reul).underlying());
-        }
+        require(_reul != address(0), "!rEUL");
+        REUL = IRewardToken(_reul);
+        EUL = ERC20(IRewardToken(_reul).underlying());
     }
 
     /// @notice Claims REUL rewards and swaps them for the underlying asset
     /// @dev Overrides the base function to handle Euler-specific reward claiming and swapping
     function _claimAndSellRewards() internal override {
-        if (address(REUL) == address(0)) return;
         uint256 _reulBalance = REUL.balanceOf(address(this));
         if (_reulBalance != 0) {
             REUL.withdrawToByLockTimestamps(
@@ -121,7 +119,10 @@ contract EulerCompounderStrategy is Base4626Compounder {
     /// @param _auction The contract running the auction
     /// @param _from The token to be sold in the auction (e.g., EUL or WETH)
     /// @return The available amount for bidding on in the auction
-    function _kickAuction(address _auction, address _from) internal virtual returns (uint256) {
+    function _kickAuction(
+        address _auction,
+        address _from
+    ) internal virtual returns (uint256) {
         require(_from != address(asset) && _from != address(vault), "!kick");
         uint256 _balance = ERC20(_from).balanceOf(address(this));
         require(_balance >= minAmountToAuction[_from], "!min");

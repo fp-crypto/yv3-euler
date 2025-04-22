@@ -447,6 +447,113 @@ contract OperationTest is Setup {
         strategyFactory.newStrategy(vault, "");
     }
 
+    function test_setAuction_validationFails() public {
+        address mockAuction = address(0x123);
+
+        // Create a mock auction contract that has incorrect want
+        vm.mockCall(
+            mockAuction,
+            abi.encodeWithSelector(IAuction.want.selector),
+            abi.encode(address(0xBEEF)) // Different from strategy.asset()
+        );
+
+        vm.mockCall(
+            mockAuction,
+            abi.encodeWithSelector(IAuction.receiver.selector),
+            abi.encode(address(strategy))
+        );
+
+        // Test failure when want doesn't match asset
+        vm.prank(management);
+        vm.expectRevert("!want");
+        strategy.setAuction(mockAuction);
+
+        // Mock correct want but incorrect receiver
+        vm.mockCall(
+            mockAuction,
+            abi.encodeWithSelector(IAuction.want.selector),
+            abi.encode(address(asset))
+        );
+
+        vm.mockCall(
+            mockAuction,
+            abi.encodeWithSelector(IAuction.receiver.selector),
+            abi.encode(address(0xBEEF)) // Different from strategy address
+        );
+
+        // Test failure when receiver doesn't match strategy
+        vm.prank(management);
+        vm.expectRevert("!receiver");
+        strategy.setAuction(mockAuction);
+    }
+
+    function test_kickAuction_errors() public {
+        // Test when auctions are disabled
+        vm.prank(management);
+        strategy.setUseAuctions(false);
+
+        vm.prank(keeper);
+        vm.expectRevert(bytes("!auction"));
+        strategy.kickAuction(address(0xBEEF));
+
+        // Test when auction address is zero
+        vm.startPrank(management);
+        strategy.setUseAuctions(true);
+        strategy.setAuction(address(0)); // Set to zero address
+        vm.stopPrank();
+
+        vm.prank(keeper);
+        vm.expectRevert(bytes("!auction"));
+        strategy.kickAuction(address(0xBEEF));
+    }
+
+    function test_kickAuction_invalidToken() public {
+        // Setup auction first
+        address validAuction = _createAuction(strategy);
+
+        vm.startPrank(management);
+        strategy.setAuction(validAuction);
+        strategy.setUseAuctions(true);
+        vm.stopPrank();
+
+        // Test kicking with asset as token (should fail)
+        vm.prank(keeper);
+        vm.expectRevert(bytes("!kick"));
+        strategy.kickAuction(address(asset));
+
+        // Test kicking with vault as token (should fail)
+        vm.prank(keeper);
+        vm.expectRevert(bytes("!kick"));
+        strategy.kickAuction(address(vault));
+    }
+
+    function test_kickAuction_belowMinAmount() public {
+        address mockToken = address(0xBEEF);
+        uint256 minAmount = 100e18;
+        uint256 belowMinAmount = 99e18;
+
+        // Setup token with balance
+        vm.mockCall(
+            mockToken,
+            abi.encodeWithSelector(ERC20.balanceOf.selector, address(strategy)),
+            abi.encode(belowMinAmount)
+        );
+
+        // Setup auction
+        address validAuction = _createAuction(strategy);
+
+        vm.startPrank(management);
+        strategy.setAuction(validAuction);
+        strategy.setUseAuctions(true);
+        strategy.setMinAmountToAuction(mockToken, minAmount);
+        vm.stopPrank();
+
+        // Test kicking with below min amount (should fail)
+        vm.prank(keeper);
+        vm.expectRevert(bytes("!min"));
+        strategy.kickAuction(mockToken);
+    }
+
     function test_auction_wS(
         uint256 _amount,
         uint256 _wsRewardAmount,
