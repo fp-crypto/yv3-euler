@@ -5,12 +5,14 @@ import {Base4626Compounder, ERC20, IStrategy, SafeERC20} from "@periphery/Bases/
 import {IAuction} from "./interfaces/IAuction.sol";
 import {IRewardToken} from "@euler-interfaces/IRewardToken.sol";
 import {IMerklDistributor} from "./interfaces/IMerklDistributor.sol";
+import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 
 /// @title Euler Compounder Strategy
 /// @notice A strategy for compounding Euler rewards into the underlying asset
 /// @dev Inherits Base4626Compounder for vault functionality and automated reward compounding
 contract EulerCompounderStrategy is Base4626Compounder {
     using SafeERC20 for ERC20;
+    using EnumerableMap for EnumerableMap.AddressToUintMap;
 
     /// @notice The Euler reward token contract (REUL)
     IRewardToken public immutable REUL;
@@ -24,16 +26,19 @@ contract EulerCompounderStrategy is Base4626Compounder {
         IMerklDistributor(0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae);
 
     /// @notice Flag to enable using auctions for token swaps
-    /// @dev When true, uses auction-based swapping mechanism instead of Uniswap
+    /// @dev When true, uses auction-based swapping mechanism for reward tokens
     bool public useAuctions;
 
     /// @notice Address of the auction contract used for token swaps
     /// @dev Used when useAuctions is true
+    /// @dev Must be properly validated with matching want/receiver addresses
     address public auction;
 
     /// @notice Minimum token amount required to start an auction, per token
     /// @dev Maps token address to minimum amount threshold
-    mapping(address => uint256) public minAmountToAuction;
+    /// @dev Used to prevent dust auctions and control when auctions are triggered
+    /// @dev Tokens are only auctioned if their balance exceeds this threshold
+    EnumerableMap.AddressToUintMap private _minAmountToAuction;
 
     /// @notice Initializes the Euler compounder strategy
     /// @param _vault Address of the underlying vault
@@ -49,8 +54,10 @@ contract EulerCompounderStrategy is Base4626Compounder {
         EUL = ERC20(IRewardToken(_reul).underlying());
     }
 
-    /// @notice Claims REUL rewards and swaps them for the underlying asset
-    /// @dev Overrides the base function to handle Euler-specific reward claiming and swapping
+    /// @notice Claims REUL rewards and attempts to kick auctions for registered tokens
+    /// @dev Overrides the base function to handle Euler-specific reward claiming and auction initiation
+    /// @dev First, withdraws any REUL tokens to convert them to underlying EUL tokens
+    /// @dev If auctions are enabled, attempts to kick an auction for each registered token that meets the minimum threshold
     function _claimAndSellRewards() internal override {
         uint256 _reulBalance = REUL.balanceOf(address(this));
         if (_reulBalance != 0) {
@@ -60,22 +67,47 @@ contract EulerCompounderStrategy is Base4626Compounder {
                 true
             );
         }
+
+        if (!useAuctions) return;
+
+        address _auction = auction;
+        if (_auction == address(0) || !useAuctions) return;
+        address _token;
+        uint256 _length = _minAmountToAuction.length();
+        for (uint256 _i; _i < _length; ++_i) {
+            (_token, ) = _minAmountToAuction.at(_i);
+            _tryKickAuction(_auction, _token);
+        }
+    }
+
+    /// @notice Gets the minimum amount required to trigger an auction for a specific token
+    /// @param _token Address of the token to check
+    /// @return _amount The minimum amount threshold (returns 0 if token is not registered)
+    function minAmountToAuction(
+        address _token
+    ) external view returns (uint256 _amount) {
+        (, _amount) = _minAmountToAuction.tryGet(_token);
     }
 
     /// @notice Sets the minimum amount of a token required to trigger an auction
-    /// @param _token Address of the token
-    /// @param _minAmountToAuction Minimum amount of tokens needed to start an auction
+    /// @param _token Address of the token to configure the threshold for
+    /// @param _tokenMinAmountToAuction Minimum amount of tokens needed to start an auction
     /// @dev Can only be called by management
+    /// @dev This sets or updates a token in the mapping of tokens that can be auctioned
+    /// @dev Setting a threshold registers the token for automatic auction attempts during harvest
+    /// @dev The threshold prevents initiating auctions for small (dust) amounts
     function setMinAmountToAuction(
         address _token,
-        uint256 _minAmountToAuction
+        uint256 _tokenMinAmountToAuction
     ) external onlyManagement {
-        minAmountToAuction[_token] = _minAmountToAuction;
+        _minAmountToAuction.set(_token, _tokenMinAmountToAuction);
     }
 
     /// @notice Sets whether to use auctions for token swaps
     /// @param _useAuctions New value for useAuctions flag
     /// @dev Can only be called by management
+    /// @dev When enabled, the strategy will attempt to kick auctions during harvest
+    /// @dev When disabled, the strategy will not use auctions and rewards will accumulate
     function setUseAuctions(bool _useAuctions) external onlyManagement {
         useAuctions = _useAuctions;
     }
@@ -99,14 +131,20 @@ contract EulerCompounderStrategy is Base4626Compounder {
 
     /// @notice Initiates an auction for a given token
     /// @dev Can only be called by keepers when auctions are enabled
+    /// @dev This function transfers tokens to the auction contract and kicks off a new auction
+    /// @dev Will fail if:
+    ///      1. Auctions are disabled or no auction contract is set
+    ///      2. The token is the strategy's asset or vault
+    ///      3. The token balance is below the configured minimum threshold
+    ///      4. The auction fails to start for any reason
     /// @param _from The token to be sold in the auction
     /// @return The available amount for bidding on in the auction
     function kickAuction(
         address _from
     ) external virtual onlyKeepers returns (uint256) {
-        address _auction = auction;
-        require(useAuctions && _auction != address(0), "!auction");
-        return _kickAuction(_auction, _from);
+        (bool _success, uint256 _amount) = _tryKickAuction(auction, _from);
+        require(_success, "!kick");
+        return _amount;
     }
 
     /// @notice Internal function to initiate an auction for reward tokens
@@ -116,18 +154,32 @@ contract EulerCompounderStrategy is Base4626Compounder {
     ///      2. Transfers all available balance of the token to the auction contract
     ///      3. Relies on the auction contract to properly handle the kicked auction
     ///      4. The auction contract has already been validated in setAuction()
-    /// @param _auction The contract running the auction
+    ///      5. Implements minimum amount thresholds to prevent dust auctions
+    ///      6. Uses try/catch to gracefully handle auction failures
+    /// @param _auction The contract operating the auction
     /// @param _from The token to be sold in the auction (e.g., EUL or WETH)
-    /// @return The available amount for bidding on in the auction
-    function _kickAuction(
+    /// @return Success Boolean indicating whether the auction was successfully kicked
+    /// @return Amount The amount of tokens put up for auction (0 if failed)
+    function _tryKickAuction(
         address _auction,
         address _from
-    ) internal virtual returns (uint256) {
-        require(_from != address(asset) && _from != address(vault), "!kick");
-        uint256 _balance = ERC20(_from).balanceOf(address(this));
-        require(_balance >= minAmountToAuction[_from], "!min");
+    ) internal virtual returns (bool, uint256) {
+        if (!useAuctions || _auction == address(0)) return (false, 0);
+        if (_from == address(asset) || _from == address(vault))
+            return (false, 0);
+        uint256 _balance = ERC20(_from).balanceOf(address(this)) +
+            ERC20(_from).balanceOf(_auction);
+        (, uint256 _tokenMinAmountToAuction) = _minAmountToAuction.tryGet(
+            _from
+        );
+        if (_balance == 0 || _balance < _tokenMinAmountToAuction)
+            return (false, 0);
         ERC20(_from).safeTransfer(_auction, _balance);
-        return IAuction(_auction).kick(_from);
+        try IAuction(_auction).kick(_from) returns (uint256 _amountKicked) {
+            return (_amountKicked != 0, _amountKicked);
+        } catch {
+            return (false, 0);
+        }
     }
 
     /// @notice Claims rewards for a given set of users (forwards to merkl distributor)

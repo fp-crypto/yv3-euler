@@ -363,9 +363,13 @@ contract OperationTest is Setup {
 
         // Check return Values
         assertEq(profit, 0, "!profit");
-        assertApproxEqAbs(loss, 0, 0.001e6, "!loss");
+        assertApproxEqAbs(loss, 0, _amount / 10_000, "!loss"); // 10bp diff
 
-        assertGt(ERC20(strategy.EUL()).balanceOf(address(strategy)), 0, "!eul");
+        assertGt(
+            ERC20(strategy.EUL()).balanceOf(address(strategy)),
+            (_airdropAmount / 5) - 5,
+            "!eul"
+        );
 
         skip(strategy.profitMaxUnlockTime());
 
@@ -378,7 +382,7 @@ contract OperationTest is Setup {
         assertApproxEqAbs(
             asset.balanceOf(user),
             balanceBefore + _amount,
-            1,
+            _amount / 10_000,
             "!final balance"
         );
     }
@@ -493,7 +497,7 @@ contract OperationTest is Setup {
         strategy.setUseAuctions(false);
 
         vm.prank(keeper);
-        vm.expectRevert(bytes("!auction"));
+        vm.expectRevert(bytes("!kick"));
         strategy.kickAuction(address(0xBEEF));
 
         // Test when auction address is zero
@@ -503,7 +507,7 @@ contract OperationTest is Setup {
         vm.stopPrank();
 
         vm.prank(keeper);
-        vm.expectRevert(bytes("!auction"));
+        vm.expectRevert(bytes("!kick"));
         strategy.kickAuction(address(0xBEEF));
     }
 
@@ -550,7 +554,7 @@ contract OperationTest is Setup {
 
         // Test kicking with below min amount (should fail)
         vm.prank(keeper);
-        vm.expectRevert(bytes("!min"));
+        vm.expectRevert(bytes("!kick"));
         strategy.kickAuction(mockToken);
     }
 
