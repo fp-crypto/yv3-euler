@@ -337,7 +337,7 @@ contract OperationTest is Setup {
     function test_airdroppedREULUnwrapped(
         uint256 _amount,
         uint256 _airdropAmount,
-        bool _setMinAmountToAuction
+        uint256 _minAmountToAuction
     ) public {
         _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
         _airdropAmount = bound(
@@ -348,11 +348,13 @@ contract OperationTest is Setup {
                 _amount / 10
             )
         );
+        console2.log("_airdropAmount: %e", _airdropAmount);
+        console2.log("_minAmountToAuction: %e", _minAmountToAuction);
 
-        if (_setMinAmountToAuction) {
+        if (_minAmountToAuction != 0) {
             vm.startPrank(management);
             strategy.setUseAuctions(true);
-            strategy.setMinAmountToAuction(strategy.EUL(), 1);
+            strategy.setMinAmountToAuction(strategy.EUL(), _minAmountToAuction);
             IAuction(strategy.auction()).enable(strategy.EUL());
             vm.stopPrank();
         }
@@ -375,7 +377,10 @@ contract OperationTest is Setup {
         assertEq(profit, 0, "!profit");
         assertApproxEqAbs(loss, 0, _amount / 10_000, "!loss"); // 10bp diff
 
-        if (_setMinAmountToAuction) {
+        if (
+            _minAmountToAuction != 0 &&
+            _airdropAmount / 5 >= _minAmountToAuction
+        ) {
             assertTrue(
                 IAuction(strategy.auction()).isActive(strategy.EUL()),
                 "!active"
@@ -384,6 +389,12 @@ contract OperationTest is Setup {
                 ERC20(strategy.EUL()).balanceOf(strategy.auction()),
                 (_airdropAmount / 5) - 5,
                 "!eul"
+            );
+        } else if (_airdropAmount / 5 < _minAmountToAuction) {
+            assertEq(
+                ERC20(strategy.REUL()).balanceOf(address(strategy)),
+                _airdropAmount,
+                "!reul"
             );
         } else {
             assertGt(
@@ -553,7 +564,10 @@ contract OperationTest is Setup {
         strategy.kickAuction(address(vault));
     }
 
-    function test_kickAuction_belowMinAmount(uint256 minAmount, uint256 belowMinAmount) public {
+    function test_kickAuction_belowMinAmount(
+        uint256 minAmount,
+        uint256 belowMinAmount
+    ) public {
         vm.assume(minAmount != 0);
         address mockToken = address(0xBEEF);
         belowMinAmount = bound(belowMinAmount, 0, minAmount - 1);

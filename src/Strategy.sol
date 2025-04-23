@@ -60,17 +60,22 @@ contract EulerCompounderStrategy is Base4626Compounder {
     /// @dev If auctions are enabled, attempts to kick an auction for each registered token that meets the minimum threshold
     function _claimAndSellRewards() internal override {
         uint256 _reulBalance = REUL.balanceOf(address(this));
-        uint256 _eulBalance = EUL.balanceOf(address(this));
-        (, uint256 _minEulToAuction) = _minAmountToAuction.tryGet(address(EUL));
-        if (
-            _reulBalance != 0 &&
-            ((_reulBalance / 5) + _eulBalance) >= _minEulToAuction // don't claim if it's too little to auction
-        ) {
-            REUL.withdrawToByLockTimestamps(
-                address(this),
-                REUL.getLockedAmountsLockTimestamps(address(this)),
-                true
+        if (_reulBalance != 0) {
+            (, uint256 _minEulToAuction) = _minAmountToAuction.tryGet(
+                address(EUL)
             );
+            // don't claim if it's too little to auction
+            if (
+                _minEulToAuction == 0 ||
+                ((_reulBalance / 5) + EUL.balanceOf(address(this))) >=
+                _minEulToAuction
+            ) {
+                REUL.withdrawToByLockTimestamps(
+                    address(this),
+                    REUL.getLockedAmountsLockTimestamps(address(this)),
+                    true
+                );
+            }
         }
 
         if (!useAuctions) return;
