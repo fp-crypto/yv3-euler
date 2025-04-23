@@ -69,9 +69,8 @@ contract EulerCompounderStrategy is Base4626Compounder {
         }
 
         if (!useAuctions) return;
-
         address _auction = auction;
-        if (_auction == address(0) || !useAuctions) return;
+        if (_auction == address(0)) return;
         address _token;
         uint256 _length = _minAmountToAuction.length();
         for (uint256 _i; _i < _length; ++_i) {
@@ -100,7 +99,11 @@ contract EulerCompounderStrategy is Base4626Compounder {
         address _token,
         uint256 _tokenMinAmountToAuction
     ) external onlyManagement {
-        _minAmountToAuction.set(_token, _tokenMinAmountToAuction);
+        if (_tokenMinAmountToAuction == 0) {
+            _minAmountToAuction.remove(_token);
+        } else {
+            _minAmountToAuction.set(_token, _tokenMinAmountToAuction);
+        }
     }
 
     /// @notice Sets whether to use auctions for token swaps
@@ -164,22 +167,23 @@ contract EulerCompounderStrategy is Base4626Compounder {
         address _auction,
         address _from
     ) internal virtual returns (bool, uint256) {
-        if (!useAuctions || _auction == address(0)) return (false, 0);
+        if (!useAuctions || _auction == address(0)) return (false, 0); // auctions not enabled
         if (_from == address(asset) || _from == address(vault))
-            return (false, 0);
+            return (false, 0); // don't kick asset or vault tokens
+        if (
+            IAuction(_auction).isActive(address(asset)) ||
+            IAuction(_auction).available(address(asset)) != 0
+        ) return (false, 0); // auction is active
         uint256 _balance = ERC20(_from).balanceOf(address(this)) +
             ERC20(_from).balanceOf(_auction);
         (, uint256 _tokenMinAmountToAuction) = _minAmountToAuction.tryGet(
             _from
         );
         if (_balance == 0 || _balance < _tokenMinAmountToAuction)
-            return (false, 0);
+            return (false, 0); // no tokens to auction
         ERC20(_from).safeTransfer(_auction, _balance);
-        try IAuction(_auction).kick(_from) returns (uint256 _amountKicked) {
-            return (_amountKicked != 0, _amountKicked);
-        } catch {
-            return (false, 0);
-        }
+        uint256 _amountKicked = IAuction(_auction).kick(_from);
+        return (_amountKicked != 0, _amountKicked);
     }
 
     /// @notice Claims rewards for a given set of users (forwards to merkl distributor)

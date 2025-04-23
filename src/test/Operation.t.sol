@@ -5,6 +5,7 @@ import "forge-std/console2.sol";
 import {Setup, ERC20, IStrategyInterface} from "./utils/Setup.sol";
 import {IAuction} from "../interfaces/IAuction.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {EulerCompounderStrategy} from "../Strategy.sol";
 
 contract OperationTest is Setup {
     function setUp() public virtual override {
@@ -335,7 +336,8 @@ contract OperationTest is Setup {
 
     function test_airdroppedREULUnwrapped(
         uint256 _amount,
-        uint256 _airdropAmount
+        uint256 _airdropAmount,
+        bool _setMinAmountToAuction
     ) public {
         _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
         _airdropAmount = bound(
@@ -346,6 +348,14 @@ contract OperationTest is Setup {
                 _amount / 10
             )
         );
+
+        if (_setMinAmountToAuction) {
+            vm.startPrank(management);
+            strategy.setUseAuctions(true);
+            strategy.setMinAmountToAuction(strategy.EUL(), 1);
+            IAuction(strategy.auction()).enable(strategy.EUL());
+            vm.stopPrank();
+        }
 
         // Deposit into strategy
         mintAndDepositIntoStrategy(strategy, user, _amount);
@@ -365,11 +375,23 @@ contract OperationTest is Setup {
         assertEq(profit, 0, "!profit");
         assertApproxEqAbs(loss, 0, _amount / 10_000, "!loss"); // 10bp diff
 
-        assertGt(
-            ERC20(strategy.EUL()).balanceOf(address(strategy)),
-            (_airdropAmount / 5) - 5,
-            "!eul"
-        );
+        if (_setMinAmountToAuction) {
+            assertTrue(
+                IAuction(strategy.auction()).isActive(strategy.EUL()),
+                "!active"
+            );
+            assertGt(
+                ERC20(strategy.EUL()).balanceOf(strategy.auction()),
+                (_airdropAmount / 5) - 5,
+                "!eul"
+            );
+        } else {
+            assertGt(
+                ERC20(strategy.EUL()).balanceOf(address(strategy)),
+                (_airdropAmount / 5) - 5,
+                "!eul"
+            );
+        }
 
         skip(strategy.profitMaxUnlockTime());
 
@@ -531,20 +553,27 @@ contract OperationTest is Setup {
         strategy.kickAuction(address(vault));
     }
 
-    function test_kickAuction_belowMinAmount() public {
+    function test_kickAuction_belowMinAmount(uint256 minAmount, uint256 belowMinAmount) public {
+        vm.assume(minAmount != 0);
         address mockToken = address(0xBEEF);
-        uint256 minAmount = 100e18;
-        uint256 belowMinAmount = 99e18;
+        belowMinAmount = bound(belowMinAmount, 0, minAmount - 1);
 
+        // Setup auction
+        address validAuction = _createAuction(strategy);
         // Setup token with balance
         vm.mockCall(
             mockToken,
             abi.encodeWithSelector(ERC20.balanceOf.selector, address(strategy)),
             abi.encode(belowMinAmount)
         );
-
-        // Setup auction
-        address validAuction = _createAuction(strategy);
+        vm.mockCall(
+            mockToken,
+            abi.encodeWithSelector(
+                ERC20.balanceOf.selector,
+                address(validAuction)
+            ),
+            abi.encode(0)
+        );
 
         vm.startPrank(management);
         strategy.setAuction(validAuction);
@@ -613,5 +642,86 @@ contract OperationTest is Setup {
         assertEq(ERC20(wS).balanceOf(address(strategy)), 0, "!swap");
         assertEq(asset.balanceOf(address(strategy)), 0, "!asset");
         assertTrue(_auction.isActive(wS), "!active");
+    }
+
+    function test_tryKickAuction_fails() public {
+        address mockToken = address(0xBEEF);
+        address mockAuction = address(0x123);
+
+        // Setup token balance
+        vm.mockCall(
+            mockToken,
+            abi.encodeWithSelector(ERC20.balanceOf.selector, address(strategy)),
+            abi.encode(100e18)
+        );
+
+        vm.mockCall(
+            mockToken,
+            abi.encodeWithSelector(ERC20.balanceOf.selector, mockAuction),
+            abi.encode(0)
+        );
+
+        // Mock safe transfer to succeed
+        vm.mockCall(
+            mockToken,
+            abi.encodeWithSelector(
+                ERC20.transfer.selector,
+                mockAuction,
+                100e18
+            ),
+            abi.encode(true)
+        );
+
+        vm.mockCall(
+            mockAuction,
+            abi.encodeWithSelector(IAuction.want.selector),
+            abi.encode(strategy.asset())
+        );
+
+        vm.mockCall(
+            mockAuction,
+            abi.encodeWithSelector(IAuction.receiver.selector),
+            abi.encode(address(strategy))
+        );
+
+        vm.mockCall(
+            mockAuction,
+            abi.encodeWithSelector(IAuction.isActive.selector, asset),
+            abi.encode(false)
+        );
+
+        vm.mockCall(
+            mockAuction,
+            abi.encodeWithSelector(IAuction.available.selector, asset),
+            abi.encode(false)
+        );
+
+        // Mock auction.kick to revert
+        vm.mockCallRevert(
+            mockAuction,
+            abi.encodeWithSelector(IAuction.kick.selector, mockToken),
+            abi.encodeWithSignature("Error(string)", "kick failed")
+        );
+
+        vm.startPrank(management);
+        strategy.setUseAuctions(true);
+        strategy.setAuction(mockAuction);
+        strategy.setMinAmountToAuction(mockToken, 1); // Set minimum to 1 wei
+        vm.stopPrank();
+
+        // Call kickAuction, which should fail
+        vm.prank(keeper);
+        vm.expectRevert();
+        strategy.kickAuction(mockToken);
+    }
+
+    function test_constructor_zeroReulAddress() public {
+        // Try to deploy with zero address for REUL, should revert
+        vm.expectRevert(bytes("!rEUL"));
+        new EulerCompounderStrategy(
+            address(vault),
+            "Test Strategy",
+            address(0) // Zero address for REUL
+        );
     }
 }

@@ -294,27 +294,27 @@ contract EulerCompounderStrategyAprOracle is AprOracleBase, Multicall {
             "length mismatch"
         );
 
-        for (uint256 i = 0; i < length; i++) {
-            require(_startTimes[i] < _endTimes[i], "invalid timing");
-            require(_amounts[i] > 0, "zero amount");
+        //for (uint256 i = 0; i < length; i++) {
+        //    require(_startTimes[i] < _endTimes[i], "invalid timing");
+        //    require(_amounts[i] > 0, "zero amount");
 
-            RewardCampaign memory campaign = RewardCampaign({
-                startTime: _startTimes[i],
-                endTime: _endTimes[i],
-                amount: _amounts[i]
-            });
+        //    RewardCampaign memory campaign = RewardCampaign({
+        //        startTime: _startTimes[i],
+        //        endTime: _endTimes[i],
+        //        amount: _amounts[i]
+        //    });
 
-            // Add vault to tracked vaults if not already
-            if (!_trackedVaults.contains(_vaults[i])) {
-                _trackedVaults.add(_vaults[i]);
-            }
+        //    // Add vault to tracked vaults if not already
+        //    if (!_trackedVaults.contains(_vaults[i])) {
+        //        _trackedVaults.add(_vaults[i]);
+        //    }
 
-            // Set or update campaign for this vault/token pair
-            _rewardCampaigns[_vaults[i]].set(
-                _rewardTokens[i],
-                encodeRewardCampaign(campaign)
-            );
-        }
+        //    // Set or update campaign for this vault/token pair
+        //    _rewardCampaigns[_vaults[i]].set(
+        //        _rewardTokens[i],
+        //        encodeRewardCampaign(campaign)
+        //    );
+        //}
     }
 
     /**
