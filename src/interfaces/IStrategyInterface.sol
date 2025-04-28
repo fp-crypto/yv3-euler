@@ -18,6 +18,9 @@ interface IStrategyInterface is IBase4626Compounder {
     /// @notice Address of the auction contract
     function auction() external view returns (address);
 
+    /// @notice Address of the depositor
+    function depositor() external view returns (address);
+
     /// @notice Minimum amount of a token required to start an auction
     function minAmountToAuction(address _token) external view returns (uint256);
 
@@ -28,6 +31,12 @@ interface IStrategyInterface is IBase4626Compounder {
     /// @notice Sets the auction contract address
     /// @param _auction Address of the auction contract
     function setAuction(address _auction) external;
+
+    /// @notice Sets the authorized depositor address
+    /// @param _depositor Address allowed to deposit into the strategy
+    /// @dev Setting to address(0) allows anyone to deposit
+    /// @dev Setting to a specific address restricts deposits to only that address
+    function setDepositor(address _depositor) external;
 
     /// @notice Sets the minimum amount of a token required to trigger an auction
     /// @param _token Address of the token

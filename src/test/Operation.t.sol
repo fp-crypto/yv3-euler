@@ -423,7 +423,8 @@ contract OperationTest is Setup {
     function test_setters(
         address _auctionToken,
         uint256 _minAmountToAuction,
-        bool _useAuctions
+        bool _useAuctions,
+        address _depositor
     ) public {
         vm.expectRevert("!management");
         strategy.setMinAmountToAuction(_auctionToken, _minAmountToAuction);
@@ -439,6 +440,12 @@ contract OperationTest is Setup {
         vm.prank(management);
         strategy.setUseAuctions(_useAuctions);
         assertEq(_useAuctions, strategy.useAuctions());
+
+        vm.expectRevert("!management");
+        strategy.setDepositor(_depositor);
+        vm.prank(management);
+        strategy.setDepositor(_depositor);
+        assertEq(_depositor, strategy.depositor());
     }
 
     function test_tendTrigger(uint256 _amount) public {
@@ -737,5 +744,39 @@ contract OperationTest is Setup {
             "Test Strategy",
             address(0) // Zero address for REUL
         );
+    }
+
+    function test_depositor(uint256 _amount) public {
+        _amount = bound(_amount, minFuzzAmount, maxFuzzAmount);
+        address _depositor = address(0xDE905175);
+        vm.label(_depositor, "depositor");
+
+        vm.prank(management);
+        strategy.setDepositor(_depositor);
+
+        // Deposit into strategy
+        mintAndDepositIntoStrategy(strategy, _depositor, _amount);
+        assertEq(strategy.totalAssets(), _amount, "!totalAssets");
+
+        // Earn Interest
+        skip(1 days);
+
+        vm.prank(_depositor);
+        strategy.redeem(_amount, _depositor, _depositor);
+        assertGe(asset.balanceOf(_depositor), _amount, "!final balance");
+
+        airdrop(asset, user, _amount);
+        vm.prank(user);
+        asset.approve(address(strategy), _amount);
+
+        vm.expectRevert();
+        vm.prank(user);
+        strategy.deposit(_amount, user);
+
+        vm.prank(management);
+        strategy.setDepositor(address(0));
+
+        vm.prank(user);
+        strategy.deposit(_amount, user);
     }
 }

@@ -34,6 +34,11 @@ contract EulerCompounderStrategy is Base4626Compounder {
     /// @dev Must be properly validated with matching want/receiver addresses
     address public auction;
 
+    /// @notice Address of authorized depositor
+    /// @dev If this value is set, only the depositor can deposit
+    /// @dev if this is set to address(0), anyone can deposit
+    address public depositor;
+
     /// @notice Minimum token amount required to start an auction, per token
     /// @dev Maps token address to minimum amount threshold
     /// @dev Used to prevent dust auctions and control when auctions are triggered
@@ -89,6 +94,15 @@ contract EulerCompounderStrategy is Base4626Compounder {
         }
     }
 
+    /// @inheritdoc Base4626Compounder
+    function availableDepositLimit(
+        address _owner
+    ) public view override returns (uint256) {
+        address _depositor = depositor;
+        if (_depositor != address(0) && _depositor != _owner) return 0;
+        return super.availableDepositLimit(_owner);
+    }
+
     /// @notice Gets the minimum amount required to trigger an auction for a specific token
     /// @param _token Address of the token to check
     /// @return _amount The minimum amount threshold (returns 0 if token is not registered)
@@ -140,6 +154,15 @@ contract EulerCompounderStrategy is Base4626Compounder {
             );
         }
         auction = _auction;
+    }
+
+    /// @notice Sets the authorized depositor address
+    /// @param _depositor Address allowed to deposit into the strategy
+    /// @dev Can only be called by management
+    /// @dev Setting to address(0) allows anyone to deposit
+    /// @dev Setting to a specific address restricts deposits to only that address
+    function setDepositor(address _depositor) external onlyManagement {
+        depositor = _depositor;
     }
 
     /// @notice Initiates an auction for a given token
