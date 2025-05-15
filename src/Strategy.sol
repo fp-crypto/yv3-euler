@@ -207,14 +207,15 @@ contract EulerCompounderStrategy is Base4626Compounder {
             IAuction(_auction).isActive(address(asset)) ||
             IAuction(_auction).available(address(asset)) != 0
         ) return (false, 0); // auction is active
-        uint256 _balance = ERC20(_from).balanceOf(address(this)) +
+        uint256 _strategyBalance = ERC20(_from).balanceOf(address(this));
+        uint256 _totalBalance = _strategyBalance +
             ERC20(_from).balanceOf(_auction);
         (, uint256 _tokenMinAmountToAuction) = _minAmountToAuction.tryGet(
             _from
         );
-        if (_balance == 0 || _balance < _tokenMinAmountToAuction)
+        if (_totalBalance == 0 || _totalBalance < _tokenMinAmountToAuction)
             return (false, 0); // no tokens to auction
-        ERC20(_from).safeTransfer(_auction, _balance);
+        ERC20(_from).safeTransfer(_auction, _strategyBalance);
         uint256 _amountKicked = IAuction(_auction).kick(_from);
         return (_amountKicked != 0, _amountKicked);
     }
