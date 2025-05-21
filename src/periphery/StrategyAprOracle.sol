@@ -162,7 +162,7 @@ contract StrategyAprOracle is AprOracleBase, Multicall {
 
         uint256 totalAssetsUsd = (uint256(
             int256(IEVault(_eVault).totalAssets()) + _delta
-        ) * assetPriceUsd) / 1e18;
+        ) * assetPriceUsd) / (10 ** tokenInfo[asset].decimals);
         if (totalAssetsUsd == 0) return 0;
 
         // Iterate over all reward tokens for this vault
